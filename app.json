@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "br.com.lzgames.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "allowBackup": false,
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
