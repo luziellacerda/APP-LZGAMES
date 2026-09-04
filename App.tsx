@@ -17,6 +17,7 @@ export default function App() {
   const [data,setData]=useState<HomeData|null>(null), [tab,setTab]=useState<Tab>('inicio');
   const refresh=async()=>{ setLoading(true); setError(''); try { setData(await loadHome()); setSigned(true); } catch(e){setError(e instanceof Error?e.message:'Falha ao carregar.');} finally{setLoading(false);setBooting(false);} };
   useEffect(()=>{hasSession().then(ok=>ok?refresh():setBooting(false));},[]);
+  useEffect(()=>{if(!signed||tab!=='sorteios')return;const timer=setInterval(()=>loadHome().then(setData).catch(()=>{}),15000);return()=>clearInterval(timer);},[signed,tab]);
   const enter=async()=>{if(!loginValue.trim()||!password)return setError('Informe e-mail/WhatsApp e senha.');setLoading(true);setError('');try{await login(loginValue.trim(),password);await refresh();}catch(e){setError(e instanceof Error?e.message:'Não foi possível entrar.');setLoading(false);}};
   const exit=async()=>{setLoading(true);await logout();setData(null);setSigned(false);setPassword('');setLoading(false);};
 
