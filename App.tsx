@@ -192,8 +192,8 @@ export default function App() {
         >
           <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
           <NeonPulseBars />
-          <View style={s.brandStage}><View pointerEvents="none" style={s.brandLottie}><LottieView source={require('./assets/lz-neon-lines.json')} autoPlay loop style={s.brandLottieFill}/></View><Text style={s.eyebrow}>{authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO JOGADOR"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Seu universo de serviços, benefícios e tecnologia." : "Crie seu perfil e entre no ecossistema LZ Games."}</Text></View>
           <View style={s.authPanel}><View style={s.panelGlow}/><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/><View style={s.cornerTL}/><View style={s.cornerTR}/><View style={s.cornerBL}/><View style={s.cornerBR}/>
+          <View style={s.brandStage}><View pointerEvents="none" style={s.brandLottie}><LottieView source={require('./assets/lz-neon-lines.json')} autoPlay loop style={s.brandLottieFill}/></View><Text style={s.miniBrand}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.title}>{authMode === "login" ? "PORTAL DO CLIENTE" : "CRIAR CONTA"}</Text><Text style={s.eyebrow}>{authMode === "login" ? "SERVIÇOS · BENEFÍCIOS · TECNOLOGIA" : "NOVO ACESSO · AMBIENTE SEGURO"}</Text><View style={s.brandDivider}><View style={s.dividerLight}/></View></View>
           <View style={s.authTabs}>
             <Pressable
               style={[s.authTab, authMode === "login" && s.authTabActive]}
@@ -602,17 +602,20 @@ const s = StyleSheet.create({
   hudOnline: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: "#174d39", backgroundColor: "rgba(7,31,22,.86)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5 },
   hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 6 },
   hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
-  brandStage: { alignItems: "center", marginBottom: 20 },
-  brandLottie: { position: "absolute", top: 2, width: 330, height: 100, opacity: .8 },
+  brandStage: { alignItems: "center", marginTop: 8, marginBottom: 18 },
+  brandLottie: { position: "absolute", top: 0, width: 310, height: 100, opacity: .72 },
   brandLottieFill: { width: "100%", height: "100%" },
+  miniBrand: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 3.2, marginBottom: 11 },
+  brandDivider: { width: "100%", height: 1, marginTop: 11, backgroundColor: "rgba(83,246,167,.2)", alignItems: "center" },
+  dividerLight: { width: "42%", height: 2, top: -1, borderRadius: 2, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 12 },
   eyebrow: {
     color: "#53f6a7",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 3.4,
-    marginBottom: 7,
+    marginTop: 7,
   },
-  title: { color: "#fff", fontSize: 39, fontWeight: "900", letterSpacing: 1.8, textShadowColor: "rgba(83,246,167,.55)", textShadowRadius: 18 },
+  title: { color: "#fff", fontSize: 20, fontWeight: "900", letterSpacing: 3.2, textAlign: "center", textShadowColor: "rgba(83,246,167,.55)", textShadowRadius: 18 },
   subtitle: { color: "#9fb1a9", fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: "center", maxWidth: 320 },
   authPanel: { position: "relative", borderWidth: 1, borderColor: "rgba(83,246,167,.38)", backgroundColor: "rgba(4,15,11,.94)", borderRadius: 22, padding: 14, shadowColor: "#53f6a7", shadowOpacity: .18, shadowRadius: 28, shadowOffset: { width: 0, height: 8 } },
   panelGlow: { position: "absolute", left: 38, right: 38, top: -1, height: 2, borderRadius: 2, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 14 },
