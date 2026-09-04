@@ -4,6 +4,7 @@ declare const process:{env:Record<string,string|undefined>};
 
 const BOX_API = process.env.EXPO_PUBLIC_API_URL ?? 'https://turbobox.lzgames.com.br/api/mobile/v1';
 const CORE_API = process.env.EXPO_PUBLIC_CORE_API_URL ?? 'https://app.lzgames.com.br/api';
+const AGENDA_API = 'https://app.lzgames.com.br/sistema/agenda/';
 const RAFFLE_API = 'https://sorteios.lzgames.com.br/api';
 const BOX_TOKEN = 'lz_games_box_token';
 const CORE_TOKEN = 'lz_games_core_token';
@@ -122,7 +123,11 @@ async function boxAuthFetch(path:string,init?:RequestInit){
   return jsonFetch(`${BOX_API}${path}`,{...init,headers:{Authorization:`Bearer ${token}`,...init?.headers}});
 }
 export async function loadAgendaServices():Promise<{setores:AgendaSector[];servicos:AgendaService[]}>{
-  const payload=await boxAuthFetch('/agenda/services'); return payload.data;
+  const payload=await jsonFetch(`${AGENDA_API}?a=listServicos`);
+  return {
+    setores:Array.isArray(payload?.setores)?payload.setores:[],
+    servicos:Array.isArray(payload?.servicos)?payload.servicos:[],
+  };
 }
 export async function loadAgendaSlots(date:string,serviceId:number):Promise<AgendaSlot[]>{
   const payload=await boxAuthFetch(`/agenda/slots?date=${encodeURIComponent(date)}&serviceId=${serviceId}`); return payload.data.slots??[];
