@@ -1,7 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 
+declare const process:{env:Record<string,string|undefined>};
+
 const BOX_API = process.env.EXPO_PUBLIC_API_URL ?? 'https://turbobox.lzgames.com.br/api/mobile/v1';
 const CORE_API = process.env.EXPO_PUBLIC_CORE_API_URL ?? 'https://app.lzgames.com.br/api';
+const RAFFLE_API = 'https://sorteios.lzgames.com.br/api';
 const BOX_TOKEN = 'lz_games_box_token';
 const CORE_TOKEN = 'lz_games_core_token';
 
@@ -11,6 +14,8 @@ export type Course = { id: number; name: string; description: string; total_less
 export type License = { opaque_ref: string; license_id: string; state: string; financial_state: string; updated_at: string };
 export type ServiceOrder = Record<string, unknown> & { os_id?: number|string; id?: number|string; status?: string; equipamento?: string; equipamento_nome?: string; marca?: string; modelo?: string; defeito?: string; data_entrada?: string };
 export type Appointment = Record<string, unknown> & { agendamento_id?: number|string; id?: number|string; status?: string; data_hora?: string; data_d?: string; hora_i?: string; servico_nome?: string; profissional_nome?: string };
+export type RaffleParticipant = { name:string; number:string; color_name?:string; color_hex?:string; arena_code?:string };
+export type RaffleData = { state:string; phase:string; scheduledAt:string|null; serverTime:string|null; participantCount:number; participantLimit:number; giveaway:Record<string,unknown>|null; prizes:Record<string,unknown>[]; participants:RaffleParticipant[] };
 export type AgendaService = { id:number; setor_id:number; nome:string; duracao_min:number; preco_brl:string };
 export type AgendaSector = { id:number; nome:string };
 export type AgendaSlot = { inicio:string; fim:string; ocupado:boolean; profissionais_livres:number };
@@ -20,6 +25,7 @@ export type HomeData = {
   services: {
     assistance: { orders: ServiceOrder[] };
     scheduling: { appointments: Appointment[] };
+    raffles: RaffleData;
     turbobox: { library: Course[]; purchases: Purchase[] };
     turborama: { licenses: License[] };
   };
@@ -57,20 +63,25 @@ function normalizeUser(value:any):User {
 export async function loadHome():Promise<HomeData> {
   const [coreToken,boxToken]=await Promise.all([SecureStore.getItemAsync(CORE_TOKEN),SecureStore.getItemAsync(BOX_TOKEN)]);
   if(!coreToken&&!boxToken) throw new Error('Sua sessão terminou. Entre novamente.');
-  const [ordersResult,agendaResult,boxResult]=await Promise.allSettled([
+  const [ordersResult,agendaResult,boxResult,raffleResult,participantsResult]=await Promise.allSettled([
     coreToken?jsonFetch(`${CORE_API}/me/orders`,{headers:{Authorization:`Bearer ${coreToken}`}}):Promise.reject(new Error('Sem vínculo com assistência')),
     coreToken?jsonFetch(`${CORE_API}/me/agenda`,{headers:{Authorization:`Bearer ${coreToken}`}}):Promise.reject(new Error('Sem vínculo com agenda')),
     boxToken?jsonFetch(`${BOX_API}/home`,{headers:{Authorization:`Bearer ${boxToken}`}}):Promise.reject(new Error('Sem vínculo com TurboRama')),
+    jsonFetch(`${RAFFLE_API}/live`),
+    jsonFetch(`${RAFFLE_API}/participantes-publicos`),
   ]);
   const orders=ordersResult.status==='fulfilled'?ordersResult.value:null;
   const agenda=agendaResult.status==='fulfilled'?agendaResult.value:null;
   const box=boxResult.status==='fulfilled'?boxResult.value?.data:null;
+  const raffle=raffleResult.status==='fulfilled'?raffleResult.value:null;
+  const raffleParticipants=participantsResult.status==='fulfilled'&&Array.isArray(participantsResult.value?.participants)?participantsResult.value.participants:[];
   const user=normalizeUser(box?.user??agenda?.usuario??orders?.user??{});
   const boxOrders=box?.services?.assistance?.orders;
   const boxAppointments=box?.services?.scheduling?.appointments;
   return {user,connections:{assistance:!!coreToken||Array.isArray(boxOrders),scheduling:!!coreToken||Array.isArray(boxAppointments),turborama:!!boxToken},services:{
     assistance:{orders:Array.isArray(orders?.orders)?orders.orders:Array.isArray(boxOrders)?boxOrders:[]},
     scheduling:{appointments:Array.isArray(agenda?.agendamentos)?agenda.agendamentos:Array.isArray(boxAppointments)?boxAppointments:[]},
+    raffles:{state:String(raffle?.state??'IDLE'),phase:String(raffle?.phase??'WAITING'),scheduledAt:raffle?.scheduledAt??null,serverTime:raffle?.serverTime??null,participantCount:Number(raffle?.participantCount??raffleParticipants.length),participantLimit:Number(raffle?.participantLimit??50),giveaway:raffle?.giveaway&&typeof raffle.giveaway==='object'?raffle.giveaway:null,prizes:Array.isArray(raffle?.prizes)?raffle.prizes:[],participants:raffleParticipants},
     turbobox:{library:Array.isArray(box?.services?.turbobox?.library)?box.services.turbobox.library:[],purchases:Array.isArray(box?.services?.turbobox?.purchases)?box.services.turbobox.purchases:[]},
     turborama:{licenses:Array.isArray(box?.services?.turborama?.licenses)?box.services.turborama.licenses:[]},
   }};

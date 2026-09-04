@@ -12,4 +12,4 @@ addEventListener('resize',resize);resize();requestAnimationFrame(step);
 </script></body></html>`;
 
 export function MatrixBackground(){return <View pointerEvents="none" style={StyleSheet.absoluteFill}><WebView source={{html:MATRIX_HTML}} style={s.web} scrollEnabled={false} javaScriptEnabled androidLayerType="hardware" overScrollMode="never"/></View>}
-const s=StyleSheet.create({web:{...StyleSheet.absoluteFillObject,backgroundColor:'#020604'}});
+const s=StyleSheet.create({web:{position:'absolute',top:0,right:0,bottom:0,left:0,backgroundColor:'#020604'}});
