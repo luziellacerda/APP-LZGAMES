@@ -11,6 +11,9 @@ export type Course = { id: number; name: string; description: string; total_less
 export type License = { opaque_ref: string; license_id: string; state: string; financial_state: string; updated_at: string };
 export type ServiceOrder = Record<string, unknown> & { os_id?: number|string; id?: number|string; status?: string; equipamento?: string; equipamento_nome?: string; marca?: string; modelo?: string; defeito?: string; data_entrada?: string };
 export type Appointment = Record<string, unknown> & { agendamento_id?: number|string; id?: number|string; status?: string; data_hora?: string; data_d?: string; hora_i?: string; servico_nome?: string; profissional_nome?: string };
+export type AgendaService = { id:number; setor_id:number; nome:string; duracao_min:number; preco_brl:string };
+export type AgendaSector = { id:number; nome:string };
+export type AgendaSlot = { inicio:string; fim:string; ocupado:boolean; profissionais_livres:number };
 export type HomeData = {
   user: User;
   connections: { assistance: boolean; scheduling: boolean; turborama: boolean };
@@ -63,9 +66,11 @@ export async function loadHome():Promise<HomeData> {
   const agenda=agendaResult.status==='fulfilled'?agendaResult.value:null;
   const box=boxResult.status==='fulfilled'?boxResult.value?.data:null;
   const user=normalizeUser(box?.user??agenda?.usuario??orders?.user??{});
-  return {user,connections:{assistance:!!coreToken,scheduling:!!coreToken,turborama:!!boxToken},services:{
-    assistance:{orders:Array.isArray(orders?.orders)?orders.orders:[]},
-    scheduling:{appointments:Array.isArray(agenda?.agendamentos)?agenda.agendamentos:[]},
+  const boxOrders=box?.services?.assistance?.orders;
+  const boxAppointments=box?.services?.scheduling?.appointments;
+  return {user,connections:{assistance:!!coreToken||Array.isArray(boxOrders),scheduling:!!coreToken||Array.isArray(boxAppointments),turborama:!!boxToken},services:{
+    assistance:{orders:Array.isArray(orders?.orders)?orders.orders:Array.isArray(boxOrders)?boxOrders:[]},
+    scheduling:{appointments:Array.isArray(agenda?.agendamentos)?agenda.agendamentos:Array.isArray(boxAppointments)?boxAppointments:[]},
     turbobox:{library:Array.isArray(box?.services?.turbobox?.library)?box.services.turbobox.library:[],purchases:Array.isArray(box?.services?.turbobox?.purchases)?box.services.turbobox.purchases:[]},
     turborama:{licenses:Array.isArray(box?.services?.turborama?.licenses)?box.services.turborama.licenses:[]},
   }};
@@ -76,4 +81,19 @@ export async function logout(){
   const boxToken=await SecureStore.getItemAsync(BOX_TOKEN);
   if(boxToken){try{await jsonFetch(`${BOX_API}/auth/logout`,{method:'POST',headers:{Authorization:`Bearer ${boxToken}`},body:'{}'});}catch{}}
   await Promise.all([SecureStore.deleteItemAsync(BOX_TOKEN),SecureStore.deleteItemAsync(CORE_TOKEN)]);
+}
+
+async function boxAuthFetch(path:string,init?:RequestInit){
+  const token=await SecureStore.getItemAsync(BOX_TOKEN);
+  if(!token) throw new Error('Entre com seu WhatsApp para usar a agenda.');
+  return jsonFetch(`${BOX_API}${path}`,{...init,headers:{Authorization:`Bearer ${token}`,...init?.headers}});
+}
+export async function loadAgendaServices():Promise<{setores:AgendaSector[];servicos:AgendaService[]}>{
+  const payload=await boxAuthFetch('/agenda/services'); return payload.data;
+}
+export async function loadAgendaSlots(date:string,serviceId:number):Promise<AgendaSlot[]>{
+  const payload=await boxAuthFetch(`/agenda/slots?date=${encodeURIComponent(date)}&serviceId=${serviceId}`); return payload.data.slots??[];
+}
+export async function bookAgenda(input:{serviceId:number;sectorId:number;date:string;start:string;document:string}){
+  const payload=await boxAuthFetch('/agenda/book',{method:'POST',body:JSON.stringify(input)}); return payload.data;
 }
