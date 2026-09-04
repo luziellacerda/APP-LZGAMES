@@ -26,6 +26,7 @@ import { AgendaBooking } from "./src/AgendaBooking";
 import { HyperspaceBackground } from "./src/HyperspaceBackground";
 import { MatrixBackground } from "./src/MatrixRain";
 import { RaffleDetails } from "./src/RaffleDetails";
+import { ServiceOrderCard } from "./src/ServiceOrderCard";
 import { TurboRamaDetails } from "./src/TurboRamaDetails";
 
 type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta";
@@ -426,30 +427,7 @@ export default function App() {
             {data?.connections.assistance ? (
               data.services.assistance.orders.length ? (
                 data.services.assistance.orders.map((o, i) => (
-                  <View style={s.item} key={String(o.os_id ?? o.id ?? i)}>
-                    <View style={s.itemIcon}>
-                      <Text>🔧</Text>
-                    </View>
-                    <View style={s.itemBody}>
-                      <Text style={s.itemTitle}>
-                        OS #{String(o.os_id ?? o.id ?? "—")}
-                      </Text>
-                      <Text style={s.itemText}>
-                        {String(
-                          o.equipamento ??
-                            o.equipamento_nome ??
-                            o.modelo ??
-                            "Equipamento",
-                        )}
-                      </Text>
-                      <Text style={s.active}>
-                        ● {String(o.status ?? "EM ATENDIMENTO").toUpperCase()}
-                      </Text>
-                      {o.defeito ? (
-                        <Text style={s.itemText}>{String(o.defeito)}</Text>
-                      ) : null}
-                    </View>
-                  </View>
+                  <ServiceOrderCard order={o} key={String(o.os_id ?? o.id ?? i)} />
                 ))
               ) : (
                 <Empty text="Nenhuma ordem de serviço encontrada para seu WhatsApp." />

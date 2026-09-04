@@ -4,6 +4,7 @@ dist/
 *.jks
 *.keystore
 play-store/*.aab
+play-store/*.apk
 .env
 .env.*
 !.env.example
