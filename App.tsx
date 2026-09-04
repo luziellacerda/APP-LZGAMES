@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -168,17 +169,9 @@ export default function App() {
           contentContainerStyle={s.loginWrap}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={s.eyebrow}>
-            {authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO CLIENTE"}
-          </Text>
-          <Text style={s.title}>
-            LZ <Text style={s.logoAccent}>GAMES</Text>
-          </Text>
-          <Text style={s.subtitle}>
-            {authMode === "login"
-              ? "TurboBox e TurboRama em um só lugar."
-              : "Crie sua conta gratuita para agendar e acompanhar seus serviços."}
-          </Text>
+          <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
+          <View style={s.brandStage}><View style={s.brandGlow}/><View style={s.logoFrame}><Image source={require('./assets/icon.png')} style={s.loginLogo} resizeMode="contain"/></View><Text style={s.eyebrow}>{authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO JOGADOR"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Seu universo de serviços, benefícios e tecnologia." : "Crie seu perfil e entre no ecossistema LZ Games."}</Text></View>
+          <View style={s.authPanel}><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/>
           <View style={s.authTabs}>
             <Pressable
               style={[s.authTab, authMode === "login" && s.authTabActive]}
@@ -215,29 +208,29 @@ export default function App() {
           </View>
           {authMode === "login" ? (
             <View style={s.form}>
-              <TextInput
-                style={s.input}
+              <Text style={s.inputLabel}>IDENTIFICAÇÃO DO JOGADOR</Text><View style={s.inputShell}><Text style={s.inputIcon}>◈</Text><TextInput
+                style={s.inputInner}
                 placeholder="E-mail ou WhatsApp"
                 placeholderTextColor="#71817a"
                 value={loginValue}
                 onChangeText={setLoginValue}
                 autoCapitalize="none"
-              />
-              <TextInput
-                style={s.input}
+              /></View>
+              <Text style={s.inputLabel}>CHAVE DE ACESSO</Text><View style={s.inputShell}><Text style={s.inputIcon}>⌁</Text><TextInput
+                style={s.inputInner}
                 placeholder="Senha"
                 placeholderTextColor="#71817a"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
                 onSubmitEditing={enter}
-              />
+              /></View>
               {error ? <Text style={s.error}>{error}</Text> : null}
               <Pressable style={s.primary} onPress={enter} disabled={loading}>
                 {loading ? (
                   <ActivityIndicator color="#06110d" />
                 ) : (
-                  <Text style={s.primaryText}>ENTRAR</Text>
+                  <Text style={s.primaryText}>INICIAR SESSÃO  ▶</Text>
                 )}
               </Pressable>
             </View>
@@ -310,8 +303,9 @@ export default function App() {
               </Pressable>
             </View>
           )}
+          </View>
           <Text style={s.security}>
-            🔒 Seus dados permanecem protegidos no servidor LZ Games.
+            ◉ CONEXÃO CRIPTOGRAFADA  •  LZ SECURE NETWORK
           </Text>
         </ScrollView>
       </SafeAreaView>
@@ -575,19 +569,31 @@ const s = StyleSheet.create({
   },
   logo: { color: "#fff", fontSize: 35, fontWeight: "900", letterSpacing: 2 },
   logoAccent: { color: "#53f6a7" },
-  loginWrap: { flexGrow: 1, justifyContent: "center", padding: 28 },
+  loginWrap: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 22, paddingVertical: 28 },
+  loginHudTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
+  hudCode: { color: "#5d7a6e", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
+  hudOnline: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: "#174d39", backgroundColor: "rgba(7,31,22,.86)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5 },
+  hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 6 },
+  hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
+  brandStage: { alignItems: "center", marginBottom: 20 },
+  brandGlow: { position: "absolute", top: 10, width: 190, height: 100, borderRadius: 95, backgroundColor: "rgba(35,255,145,.10)", shadowColor: "#53f6a7", shadowOpacity: .7, shadowRadius: 35 },
+  logoFrame: { width: 88, height: 88, alignItems: "center", justifyContent: "center", borderRadius: 26, borderWidth: 1, borderColor: "rgba(83,246,167,.55)", backgroundColor: "rgba(5,18,13,.88)", transform: [{ rotate: "45deg" }], marginBottom: 20, shadowColor: "#53f6a7", shadowOpacity: .42, shadowRadius: 18 },
+  loginLogo: { width: 70, height: 70, transform: [{ rotate: "-45deg" }] },
   eyebrow: {
     color: "#53f6a7",
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: "800",
-    letterSpacing: 3,
-    marginBottom: 12,
+    letterSpacing: 3.4,
+    marginBottom: 7,
   },
-  title: { color: "#fff", fontSize: 44, fontWeight: "900", letterSpacing: 1 },
-  subtitle: { color: "#9caaa4", fontSize: 17, marginTop: 6, marginBottom: 24 },
+  title: { color: "#fff", fontSize: 39, fontWeight: "900", letterSpacing: 1.8, textShadowColor: "rgba(83,246,167,.45)", textShadowRadius: 14 },
+  subtitle: { color: "#9fb1a9", fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: "center", maxWidth: 320 },
+  authPanel: { position: "relative", borderWidth: 1, borderColor: "rgba(83,246,167,.24)", backgroundColor: "rgba(4,15,11,.93)", borderRadius: 22, padding: 14, shadowColor: "#000", shadowOpacity: .7, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } },
+  panelEdgeLeft: { position: "absolute", left: -1, top: 28, bottom: 28, width: 2, backgroundColor: "#53f6a7", borderRadius: 2 },
+  panelEdgeRight: { position: "absolute", right: -1, top: 55, bottom: 55, width: 1, backgroundColor: "#1d7150" },
   authTabs: {
     flexDirection: "row",
-    backgroundColor: "#0b1a15",
+    backgroundColor: "rgba(12,32,24,.9)",
     borderRadius: 14,
     padding: 4,
     marginBottom: 18,
@@ -599,7 +605,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 11,
   },
-  authTabActive: { backgroundColor: "#19362b" },
+  authTabActive: { backgroundColor: "#163b2c", borderWidth: 1, borderColor: "#2b7958" },
   authTabText: {
     fontSize: 11,
     fontWeight: "900",
@@ -608,7 +614,11 @@ const s = StyleSheet.create({
   },
   authTabTextActive: { color: "#53f6a7" },
   consent: { fontSize: 11, lineHeight: 16, color: "#84958d" },
-  form: { gap: 14 },
+  form: { gap: 11 },
+  inputLabel: { color: "#648076", fontSize: 8, fontWeight: "900", letterSpacing: 1.2, marginLeft: 3, marginTop: 2 },
+  inputShell: { height: 57, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#214739", backgroundColor: "rgba(7,24,18,.96)", borderRadius: 13, paddingHorizontal: 14 },
+  inputIcon: { color: "#53f6a7", width: 27, fontSize: 17, textShadowColor: "#53f6a7", textShadowRadius: 8 },
+  inputInner: { flex: 1, height: 55, color: "#fff", fontSize: 15, paddingVertical: 0 },
   input: {
     height: 56,
     borderWidth: 1,
@@ -620,12 +630,18 @@ const s = StyleSheet.create({
     fontSize: 16,
   },
   primary: {
-    height: 56,
+    height: 58,
     borderRadius: 14,
     backgroundColor: "#53f6a7",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#aaffd0",
+    shadowColor: "#53f6a7",
+    shadowOpacity: .48,
+    shadowRadius: 13,
+    shadowOffset: { width: 0, height: 4 },
   },
   primaryText: {
     color: "#06110d",
@@ -635,8 +651,10 @@ const s = StyleSheet.create({
   },
   error: { color: "#ff7d7d", fontSize: 14, marginVertical: 4 },
   security: {
-    color: "#71817a",
-    fontSize: 12,
+    color: "#597067",
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: .8,
     textAlign: "center",
     marginTop: 26,
   },
