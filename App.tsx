@@ -1,10 +1,10 @@
 import { StatusBar } from "expo-status-bar";
+import LottieView from "lottie-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
-  Image,
   Linking,
   Pressable,
   RefreshControl,
@@ -192,7 +192,7 @@ export default function App() {
         >
           <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
           <NeonPulseBars />
-          <View style={s.brandStage}><View style={s.brandGlow}/><View style={s.brandLine}/><View style={s.orbitOuter}/><View style={s.orbitInner}/><View style={[s.orb,s.orbTop]}><View style={s.orbCore}/></View><View style={[s.orb,s.orbRight]}><View style={s.orbCore}/></View><View style={[s.orb,s.orbBottom]}><View style={s.orbCore}/></View><View style={[s.orb,s.orbLeft]}><View style={s.orbCore}/></View><View style={s.logoFrame}><View style={s.logoFrameInner}><Image source={require('./assets/icon.png')} style={s.loginLogo} resizeMode="contain"/></View></View><Text style={s.eyebrow}>{authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO JOGADOR"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Seu universo de serviços, benefícios e tecnologia." : "Crie seu perfil e entre no ecossistema LZ Games."}</Text></View>
+          <View style={s.brandStage}><View pointerEvents="none" style={s.brandLottie}><LottieView source={require('./assets/lz-neon-lines.json')} autoPlay loop style={s.brandLottieFill}/></View><Text style={s.eyebrow}>{authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO JOGADOR"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Seu universo de serviços, benefícios e tecnologia." : "Crie seu perfil e entre no ecossistema LZ Games."}</Text></View>
           <View style={s.authPanel}><View style={s.panelGlow}/><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/><View style={s.cornerTL}/><View style={s.cornerTR}/><View style={s.cornerBL}/><View style={s.cornerBR}/>
           <View style={s.authTabs}>
             <Pressable
@@ -603,19 +603,8 @@ const s = StyleSheet.create({
   hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 6 },
   hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
   brandStage: { alignItems: "center", marginBottom: 20 },
-  brandGlow: { position: "absolute", top: -8, width: 230, height: 130, borderRadius: 115, backgroundColor: "rgba(35,255,145,.10)", shadowColor: "#53f6a7", shadowOpacity: .85, shadowRadius: 45 },
-  brandLine: { position: "absolute", top: 50, width: 280, height: 1, backgroundColor: "rgba(83,246,167,.26)", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 8 },
-  orbitOuter: { position: "absolute", top: -7, width: 128, height: 128, borderRadius: 64, borderWidth: 1, borderColor: "rgba(83,246,167,.48)", borderStyle: "dashed", shadowColor: "#53f6a7", shadowOpacity: .9, shadowRadius: 11 },
-  orbitInner: { position: "absolute", top: 3, width: 108, height: 108, borderRadius: 54, borderWidth: 1, borderColor: "rgba(83,246,167,.32)", shadowColor: "#53f6a7", shadowOpacity: .65, shadowRadius: 7 },
-  orb: { position: "absolute", zIndex: 3, width: 13, height: 13, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(83,246,167,.25)", borderWidth: 1, borderColor: "#b7ffd8", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 14, elevation: 9 },
-  orbCore: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#eafff3", shadowColor: "#ffffff", shadowOpacity: 1, shadowRadius: 7 },
-  orbTop: { top: -13, left: "50%", marginLeft: -7 },
-  orbRight: { top: 49, left: "50%", marginLeft: 59 },
-  orbBottom: { top: 111, left: "50%", marginLeft: -7 },
-  orbLeft: { top: 49, left: "50%", marginLeft: -72 },
-  logoFrame: { width: 102, height: 102, alignItems: "center", justifyContent: "center", borderRadius: 30, borderWidth: 1, borderColor: "rgba(83,246,167,.78)", backgroundColor: "rgba(4,17,12,.96)", transform: [{ rotate: "45deg" }], marginBottom: 19, shadowColor: "#53f6a7", shadowOpacity: .65, shadowRadius: 25 },
-  logoFrameInner: { width: 88, height: 88, borderRadius: 25, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(83,246,167,.20)", backgroundColor: "#050d0a" },
-  loginLogo: { width: 76, height: 76, transform: [{ rotate: "-45deg" }] },
+  brandLottie: { position: "absolute", top: 2, width: 330, height: 100, opacity: .8 },
+  brandLottieFill: { width: "100%", height: "100%" },
   eyebrow: {
     color: "#53f6a7",
     fontSize: 9,
