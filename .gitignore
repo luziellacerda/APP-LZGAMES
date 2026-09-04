@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example

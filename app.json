@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "LZ Games",
+    "slug": "lz-games",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "br.com.lzgames.app",
+      "adaptiveIcon": { "backgroundColor": "#07130f" }
+    },
+    "ios": { "bundleIdentifier": "br.com.lzgames.app", "supportsTablet": true },
+    "extra": { "apiUrl": "https://turbobox.lzgames.com.br/api/mobile/v1" }
+  }
+}
