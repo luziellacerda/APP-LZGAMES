@@ -604,7 +604,7 @@ const s = StyleSheet.create({
   hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
   brandStage: { alignItems: "center", marginTop: 8, marginBottom: 18 },
   brandLottieFill: { width: "100%", height: "100%" },
-  portalLottie: { position: "relative", alignSelf: "center", width: 210, height: 145, marginTop: 7, marginBottom: -12 },
+  portalLottie: { position: "relative", alignSelf: "center", width: 290, height: 195, marginTop: 8, marginBottom: -14 },
   portalLottieLabel: { position: "absolute", left: 0, right: 0, bottom: 10, color: "rgba(110,231,183,.7)", fontSize: 7, fontWeight: "900", letterSpacing: 2.1, textAlign: "center" },
   miniBrand: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 3.2, marginBottom: 11 },
   brandDivider: { width: "100%", height: 1, marginTop: 11, backgroundColor: "rgba(83,246,167,.2)", alignItems: "center" },
