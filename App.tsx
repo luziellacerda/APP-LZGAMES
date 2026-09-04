@@ -193,7 +193,7 @@ export default function App() {
           <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
           <NeonPulseBars />
           <View style={s.authPanel}><View style={s.panelGlow}/><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/><View style={s.cornerTL}/><View style={s.cornerTR}/><View style={s.cornerBL}/><View style={s.cornerBR}/>
-          <View style={s.brandStage}><View pointerEvents="none" style={s.brandLottie}><LottieView source={require('./assets/lz-neon-lines.json')} autoPlay loop style={s.brandLottieFill}/></View><Text style={s.miniBrand}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.title}>{authMode === "login" ? "PORTAL DO CLIENTE" : "CRIAR CONTA"}</Text><Text style={s.eyebrow}>{authMode === "login" ? "SERVIÇOS · BENEFÍCIOS · TECNOLOGIA" : "NOVO ACESSO · AMBIENTE SEGURO"}</Text><View style={s.brandDivider}><View style={s.dividerLight}/></View></View>
+          <View style={s.brandStage}><Text style={s.miniBrand}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.title}>{authMode === "login" ? "PORTAL DO CLIENTE" : "CRIAR CONTA"}</Text><Text style={s.eyebrow}>{authMode === "login" ? "SERVIÇOS · BENEFÍCIOS · TECNOLOGIA" : "NOVO ACESSO · AMBIENTE SEGURO"}</Text><View style={s.brandDivider}><View style={s.dividerLight}/></View></View>
           <View style={s.authTabs}>
             <Pressable
               style={[s.authTab, authMode === "login" && s.authTabActive]}
@@ -325,6 +325,7 @@ export default function App() {
               </Pressable>
             </View>
           )}
+          <View pointerEvents="none" style={s.portalLottie}><LottieView source={{uri:'https://turbobox.lzgames.com.br/assets/lottie/login-original.json?v=20260826-8'}} autoPlay loop style={s.brandLottieFill}/><Text style={s.portalLottieLabel}>PORTAL LZ GAMES</Text></View>
           </View>
           <Text style={s.security}>
             ◉ CONEXÃO CRIPTOGRAFADA  •  LZ SECURE NETWORK
@@ -603,8 +604,9 @@ const s = StyleSheet.create({
   hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 6 },
   hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
   brandStage: { alignItems: "center", marginTop: 8, marginBottom: 18 },
-  brandLottie: { position: "absolute", top: 0, width: 310, height: 100, opacity: .72 },
   brandLottieFill: { width: "100%", height: "100%" },
+  portalLottie: { position: "relative", alignSelf: "center", width: 210, height: 145, marginTop: 7, marginBottom: -12 },
+  portalLottieLabel: { position: "absolute", left: 0, right: 0, bottom: 10, color: "rgba(110,231,183,.7)", fontSize: 7, fontWeight: "900", letterSpacing: 2.1, textAlign: "center" },
   miniBrand: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 3.2, marginBottom: 11 },
   brandDivider: { width: "100%", height: 1, marginTop: 11, backgroundColor: "rgba(83,246,167,.2)", alignItems: "center" },
   dividerLight: { width: "42%", height: 2, top: -1, borderRadius: 2, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 12 },
