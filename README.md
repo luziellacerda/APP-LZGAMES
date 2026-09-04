@@ -34,3 +34,7 @@ npm run build:android:preview
 ```
 
 Antes de publicar, conclua no Play Console a ficha da loja, classificação indicativa, segurança de dados, política de privacidade e teste fechado exigido para a conta de desenvolvedor.
+
+## Documentação
+
+O passo a passo completo, incluindo APK, AAB, atualização de versão, download, instalação via ADB e solução de erros, está em [docs/COMPILACAO-ANDROID.md](docs/COMPILACAO-ANDROID.md).
