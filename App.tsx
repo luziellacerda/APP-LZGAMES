@@ -169,8 +169,8 @@ export default function App() {
           contentContainerStyle={s.loginWrap}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
-          <View style={s.brandStage}><View style={s.brandGlow}/><View style={s.logoFrame}><Image source={require('./assets/icon.png')} style={s.loginLogo} resizeMode="contain"/></View><Text style={s.eyebrow}>{authMode === "login" ? "SUA CENTRAL GAMER" : "NOVO JOGADOR"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Seu universo de serviços, benefícios e tecnologia." : "Crie seu perfil e entre no ecossistema LZ Games."}</Text></View>
+          <View style={s.loginHudTop}><Text style={s.hudCode}>LZ PRIVATE NETWORK</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>ACESSO SEGURO</Text></View></View>
+          <View style={s.brandStage}><View style={s.brandGlow}/><View style={s.brandLine}/><View style={s.logoFrame}><View style={s.logoFrameInner}><Image source={require('./assets/icon.png')} style={s.loginLogo} resizeMode="contain"/></View></View><Text style={s.eyebrow}>{authMode === "login" ? "PRIVATE DIGITAL EXPERIENCE" : "MEMBERSHIP ACCESS"}</Text><Text style={s.title}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.subtitle}>{authMode === "login" ? "Tecnologia, exclusividade e atendimento em uma experiência única." : "Crie sua identidade digital e entre para o universo LZ Games."}</Text></View>
           <View style={s.authPanel}><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/>
           <View style={s.authTabs}>
             <Pressable
@@ -208,7 +208,7 @@ export default function App() {
           </View>
           {authMode === "login" ? (
             <View style={s.form}>
-              <Text style={s.inputLabel}>IDENTIFICAÇÃO DO JOGADOR</Text><View style={s.inputShell}><Text style={s.inputIcon}>◈</Text><TextInput
+              <Text style={s.inputLabel}>IDENTIFICAÇÃO DO CLIENTE</Text><View style={s.inputShell}><Text style={s.inputIcon}>◇</Text><TextInput
                 style={s.inputInner}
                 placeholder="E-mail ou WhatsApp"
                 placeholderTextColor="#71817a"
@@ -216,7 +216,7 @@ export default function App() {
                 onChangeText={setLoginValue}
                 autoCapitalize="none"
               /></View>
-              <Text style={s.inputLabel}>CHAVE DE ACESSO</Text><View style={s.inputShell}><Text style={s.inputIcon}>⌁</Text><TextInput
+              <Text style={s.inputLabel}>CREDENCIAL DE ACESSO</Text><View style={s.inputShell}><Text style={s.inputIcon}>⌁</Text><TextInput
                 style={s.inputInner}
                 placeholder="Senha"
                 placeholderTextColor="#71817a"
@@ -230,7 +230,7 @@ export default function App() {
                 {loading ? (
                   <ActivityIndicator color="#06110d" />
                 ) : (
-                  <Text style={s.primaryText}>INICIAR SESSÃO  ▶</Text>
+                  <Text style={s.primaryText}>ACESSAR EXPERIÊNCIA  ›</Text>
                 )}
               </Pressable>
             </View>
@@ -568,32 +568,34 @@ const s = StyleSheet.create({
     gap: 28,
   },
   logo: { color: "#fff", fontSize: 35, fontWeight: "900", letterSpacing: 2 },
-  logoAccent: { color: "#53f6a7" },
+  logoAccent: { color: "#d8b45a" },
   loginWrap: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 22, paddingVertical: 28 },
   loginHudTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
-  hudCode: { color: "#5d7a6e", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
-  hudOnline: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: "#174d39", backgroundColor: "rgba(7,31,22,.86)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 5 },
-  hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 6 },
-  hudOnlineText: { color: "#53f6a7", fontSize: 7, fontWeight: "900", letterSpacing: .7 },
+  hudCode: { color: "#8c805f", fontSize: 8, fontWeight: "900", letterSpacing: 1.8 },
+  hudOnline: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: "#5e4c25", backgroundColor: "rgba(25,20,10,.9)", borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
+  hudDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#e3c46c", shadowColor: "#e3c46c", shadowOpacity: 1, shadowRadius: 6 },
+  hudOnlineText: { color: "#d8b45a", fontSize: 7, fontWeight: "900", letterSpacing: .8 },
   brandStage: { alignItems: "center", marginBottom: 20 },
-  brandGlow: { position: "absolute", top: 10, width: 190, height: 100, borderRadius: 95, backgroundColor: "rgba(35,255,145,.10)", shadowColor: "#53f6a7", shadowOpacity: .7, shadowRadius: 35 },
-  logoFrame: { width: 88, height: 88, alignItems: "center", justifyContent: "center", borderRadius: 26, borderWidth: 1, borderColor: "rgba(83,246,167,.55)", backgroundColor: "rgba(5,18,13,.88)", transform: [{ rotate: "45deg" }], marginBottom: 20, shadowColor: "#53f6a7", shadowOpacity: .42, shadowRadius: 18 },
-  loginLogo: { width: 70, height: 70, transform: [{ rotate: "-45deg" }] },
+  brandGlow: { position: "absolute", top: 4, width: 220, height: 118, borderRadius: 110, backgroundColor: "rgba(214,172,70,.08)", shadowColor: "#d8b45a", shadowOpacity: .55, shadowRadius: 42 },
+  brandLine: { position: "absolute", top: 50, width: 250, height: 1, backgroundColor: "rgba(216,180,90,.22)" },
+  logoFrame: { width: 102, height: 102, alignItems: "center", justifyContent: "center", borderRadius: 51, borderWidth: 1, borderColor: "rgba(227,196,108,.7)", backgroundColor: "rgba(8,8,8,.94)", marginBottom: 19, shadowColor: "#d8b45a", shadowOpacity: .4, shadowRadius: 24 },
+  logoFrameInner: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(216,180,90,.22)", backgroundColor: "#070908" },
+  loginLogo: { width: 76, height: 76 },
   eyebrow: {
-    color: "#53f6a7",
+    color: "#d8b45a",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 3.4,
     marginBottom: 7,
   },
-  title: { color: "#fff", fontSize: 39, fontWeight: "900", letterSpacing: 1.8, textShadowColor: "rgba(83,246,167,.45)", textShadowRadius: 14 },
-  subtitle: { color: "#9fb1a9", fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: "center", maxWidth: 320 },
-  authPanel: { position: "relative", borderWidth: 1, borderColor: "rgba(83,246,167,.24)", backgroundColor: "rgba(4,15,11,.93)", borderRadius: 22, padding: 14, shadowColor: "#000", shadowOpacity: .7, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } },
-  panelEdgeLeft: { position: "absolute", left: -1, top: 28, bottom: 28, width: 2, backgroundColor: "#53f6a7", borderRadius: 2 },
-  panelEdgeRight: { position: "absolute", right: -1, top: 55, bottom: 55, width: 1, backgroundColor: "#1d7150" },
+  title: { color: "#fff", fontSize: 39, fontWeight: "900", letterSpacing: 2.5, textShadowColor: "rgba(216,180,90,.38)", textShadowRadius: 16 },
+  subtitle: { color: "#b4ac99", fontSize: 13, lineHeight: 20, marginTop: 5, textAlign: "center", maxWidth: 330 },
+  authPanel: { position: "relative", borderWidth: 1, borderColor: "rgba(216,180,90,.35)", backgroundColor: "rgba(7,9,8,.96)", borderRadius: 22, padding: 14, shadowColor: "#000", shadowOpacity: .8, shadowRadius: 26, shadowOffset: { width: 0, height: 14 } },
+  panelEdgeLeft: { position: "absolute", left: -1, top: 28, bottom: 28, width: 2, backgroundColor: "#d8b45a", borderRadius: 2 },
+  panelEdgeRight: { position: "absolute", right: -1, top: 55, bottom: 55, width: 1, backgroundColor: "#725b27" },
   authTabs: {
     flexDirection: "row",
-    backgroundColor: "rgba(12,32,24,.9)",
+    backgroundColor: "rgba(28,25,17,.9)",
     borderRadius: 14,
     padding: 4,
     marginBottom: 18,
@@ -605,19 +607,19 @@ const s = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 11,
   },
-  authTabActive: { backgroundColor: "#163b2c", borderWidth: 1, borderColor: "#2b7958" },
+  authTabActive: { backgroundColor: "#2b2414", borderWidth: 1, borderColor: "#665126" },
   authTabText: {
     fontSize: 11,
     fontWeight: "900",
     color: "#71817a",
     letterSpacing: 1,
   },
-  authTabTextActive: { color: "#53f6a7" },
+  authTabTextActive: { color: "#e3c46c" },
   consent: { fontSize: 11, lineHeight: 16, color: "#84958d" },
   form: { gap: 11 },
-  inputLabel: { color: "#648076", fontSize: 8, fontWeight: "900", letterSpacing: 1.2, marginLeft: 3, marginTop: 2 },
-  inputShell: { height: 57, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#214739", backgroundColor: "rgba(7,24,18,.96)", borderRadius: 13, paddingHorizontal: 14 },
-  inputIcon: { color: "#53f6a7", width: 27, fontSize: 17, textShadowColor: "#53f6a7", textShadowRadius: 8 },
+  inputLabel: { color: "#8e8264", fontSize: 8, fontWeight: "900", letterSpacing: 1.4, marginLeft: 3, marginTop: 2 },
+  inputShell: { height: 57, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#443b27", backgroundColor: "rgba(13,14,12,.98)", borderRadius: 13, paddingHorizontal: 14 },
+  inputIcon: { color: "#d8b45a", width: 27, fontSize: 17, textShadowColor: "#d8b45a", textShadowRadius: 8 },
   inputInner: { flex: 1, height: 55, color: "#fff", fontSize: 15, paddingVertical: 0 },
   input: {
     height: 56,
@@ -632,13 +634,13 @@ const s = StyleSheet.create({
   primary: {
     height: 58,
     borderRadius: 14,
-    backgroundColor: "#53f6a7",
+    backgroundColor: "#d8b45a",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
     borderWidth: 1,
-    borderColor: "#aaffd0",
-    shadowColor: "#53f6a7",
+    borderColor: "#f2d98e",
+    shadowColor: "#d8b45a",
     shadowOpacity: .48,
     shadowRadius: 13,
     shadowOffset: { width: 0, height: 4 },
