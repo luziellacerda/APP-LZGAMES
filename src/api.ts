@@ -58,6 +58,14 @@ export async function login(loginValue: string, password: string) {
   return normalizeUser(core?.user??box?.user);
 }
 
+export async function register(input:{name:string;phone:string;email:string;cpf:string;password:string}) {
+  const payload=await jsonFetch(`${CORE_API}/auth/register`,{method:'POST',body:JSON.stringify({nome:input.name,telefone:input.phone,email:input.email,cpf:input.cpf,senha:input.password,consentimento:true})});
+  if(!payload?.token) throw new Error('O cadastro não retornou uma sessão válida.');
+  await SecureStore.setItemAsync(CORE_TOKEN,payload.token);
+  await SecureStore.deleteItemAsync(BOX_TOKEN);
+  return normalizeUser(payload.user);
+}
+
 function normalizeUser(value:any):User {
   return {id:Number(value?.id??value?.sub??0),name:String(value?.name??value?.nome??'Cliente LZ Games'),email:String(value?.email??''),phone:String(value?.phone??value?.telefone??''),document:String(value?.document??value?.documento??'')};
 }
