@@ -8,16 +8,10 @@
     "scheme": "lzgames",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#07130f"
-    },
     "android": {
       "package": "br.com.lzgames.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "allowBackup": false,
-      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07130f"
@@ -29,7 +23,15 @@
       "supportsTablet": true
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#07130f"
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "https://turbobox.lzgames.com.br/api/mobile/v1",
