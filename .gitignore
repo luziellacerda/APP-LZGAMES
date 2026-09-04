@@ -3,6 +3,7 @@ node_modules/
 dist/
 *.jks
 *.keystore
+play-store/*.aab
 .env
 .env.*
 !.env.example
