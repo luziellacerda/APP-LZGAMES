@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Easing,
   Linking,
   Pressable,
   RefreshControl,
@@ -37,24 +38,17 @@ const money = (value: number) =>
     value / 100,
   );
 
-function NeonPulseBars({ compact = false }: { compact?: boolean }) {
-  const pulse = React.useRef(new Animated.Value(0)).current;
+function MenuLed() {
+  const spin = React.useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1250, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1250, useNativeDriver: true }),
-      ]),
+      Animated.timing(spin, { toValue: 1, duration: 2600, easing: Easing.linear, useNativeDriver: true }),
     );
     animation.start();
     return () => animation.stop();
-  }, [pulse]);
-  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [.28, 1] });
-  const scaleX = pulse.interpolate({ inputRange: [0, 1], outputRange: [.68, 1] });
-  return <View pointerEvents="none" style={[s.neonTrack, compact && s.neonTrackCompact]}>
-    <Animated.View style={[s.neonBar, { opacity, transform: [{ scaleX }] }]}/>
-    <Animated.View style={[s.neonSpark, { opacity, transform: [{ scaleX }] }]}/>
-  </View>;
+  }, [spin]);
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  return <Animated.View pointerEvents="none" style={[s.menuLedOrbit, { transform: [{ rotate }] }]}><View style={s.menuLedDot}/></Animated.View>;
 }
 
 export default function App() {
@@ -358,7 +352,6 @@ export default function App() {
       {tab === "agenda" ? <HyperspaceBackground /> : <MatrixBackground />}
       <StatusBar style="light" />
       <View style={s.header}>
-        <NeonPulseBars compact />
         <View>
           <Text style={s.miniLogo}>
             LZ <Text style={s.logoAccent}>GAMES</Text>
@@ -561,6 +554,7 @@ export default function App() {
           ["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]
         ).map((t, i) => (
           <Pressable key={t} style={s.navItem} onPress={() => setTab(t)}>
+            {tab === t ? <MenuLed /> : null}
             <Text style={[s.navIcon, tab === t && s.navActive]}>
               {["⌂", "🔧", "▣", "⚡", "★", "●"][i]}
             </Text>
@@ -592,10 +586,6 @@ const s = StyleSheet.create({
   },
   logo: { color: "#fff", fontSize: 35, fontWeight: "900", letterSpacing: 2 },
   logoAccent: { color: "#53f6a7" },
-  neonTrack: { height: 8, marginBottom: 17, justifyContent: "center", overflow: "visible" },
-  neonTrackCompact: { position: "absolute", left: 20, right: 20, bottom: -8, marginBottom: 0, zIndex: 5 },
-  neonBar: { alignSelf: "center", width: "100%", height: 1, borderRadius: 2, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 12, elevation: 7 },
-  neonSpark: { position: "absolute", alignSelf: "center", width: "42%", height: 3, borderRadius: 3, backgroundColor: "#b9ffda", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 16, elevation: 9 },
   loginWrap: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 22, paddingVertical: 28 },
   loginHudTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
   hudCode: { color: "#5d7a6e", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
@@ -874,7 +864,9 @@ const s = StyleSheet.create({
     paddingTop: 5,
     paddingBottom: 23,
   },
-  navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2 },
+  navItem: { position: "relative", flex: 1, alignItems: "center", justifyContent: "center", gap: 2 },
+  menuLedOrbit: { position: "absolute", top: 3, width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: "rgba(83,246,167,.18)", alignItems: "center" },
+  menuLedDot: { position: "absolute", top: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: "#d6ffe8", borderWidth: 1, borderColor: "#fff", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 9, elevation: 8 },
   navIcon: { color: "#65766e", fontSize: 16, fontWeight: "800" },
   navText: { color: "#65766e", fontSize: 8, fontWeight: "700" },
   navActive: { color: "#53f6a7" },
