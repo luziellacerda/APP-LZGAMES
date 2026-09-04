@@ -2,6 +2,8 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -18,6 +20,7 @@ import {
   login,
   logout,
   register,
+  requestAccountDeletion,
 } from "./src/api";
 import { AgendaBooking } from "./src/AgendaBooking";
 import { HyperspaceBackground } from "./src/HyperspaceBackground";
@@ -47,6 +50,7 @@ export default function App() {
     [confirmPassword, setConfirmPassword] = useState("");
   const [data, setData] = useState<HomeData | null>(null),
     [tab, setTab] = useState<Tab>("inicio");
+  const [deletePassword, setDeletePassword] = useState("");
   const refresh = async () => {
     setLoading(true);
     setError("");
@@ -115,6 +119,33 @@ export default function App() {
     setSigned(false);
     setPassword("");
     setLoading(false);
+  };
+  const askAccountDeletion = () => {
+    if (!deletePassword) return setError("Digite sua senha para confirmar a solicitação.");
+    Alert.alert(
+      "Solicitar exclusão da conta?",
+      "Seu acesso será analisado para exclusão junto aos dados associados. Registros que precisem ser mantidos por obrigação legal serão preservados somente pelo prazo necessário.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Solicitar exclusão",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+            setError("");
+            try {
+              const response = await requestAccountDeletion(deletePassword);
+              setDeletePassword("");
+              Alert.alert("Solicitação recebida", response?.message ?? "Enviaremos a confirmação para seus dados cadastrados.");
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Não foi possível enviar a solicitação.");
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (booting)
@@ -502,6 +533,31 @@ export default function App() {
             <Pressable style={s.logout} onPress={exit}>
               <Text style={s.logoutText}>SAIR DA CONTA</Text>
             </Pressable>
+            <View style={s.legalLinks}>
+              <Pressable onPress={() => Linking.openURL("https://app.lzgames.com.br/privacidade/")}>
+                <Text style={s.legalLink}>Política de Privacidade</Text>
+              </Pressable>
+              <Pressable onPress={() => Linking.openURL("https://app.lzgames.com.br/excluir-conta/")}>
+                <Text style={s.legalLink}>Informações sobre exclusão</Text>
+              </Pressable>
+            </View>
+            <View style={s.deleteBox}>
+              <Text style={s.deleteTitle}>Excluir minha conta</Text>
+              <Text style={s.deleteText}>
+                Para sua segurança, confirme sua senha. A solicitação será registrada e processada conforme nossa Política de Privacidade.
+              </Text>
+              <TextInput
+                style={s.input}
+                placeholder="Digite sua senha"
+                placeholderTextColor="#71817a"
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                secureTextEntry
+              />
+              <Pressable style={s.deleteButton} onPress={askAccountDeletion} disabled={loading}>
+                <Text style={s.deleteButtonText}>SOLICITAR EXCLUSÃO</Text>
+              </Pressable>
+            </View>
           </>
         )}
       </ScrollView>
@@ -778,6 +834,13 @@ const s = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 1.2,
   },
+  legalLinks: { alignItems: "center", gap: 12, paddingVertical: 12 },
+  legalLink: { color: "#9eb7ad", fontSize: 13, textDecorationLine: "underline" },
+  deleteBox: { marginTop: 4, padding: 18, borderRadius: 16, borderWidth: 1, borderColor: "#4d2928", backgroundColor: "#170f0e", gap: 12 },
+  deleteTitle: { color: "#ffaca6", fontSize: 17, fontWeight: "800" },
+  deleteText: { color: "#aa918e", fontSize: 12, lineHeight: 18 },
+  deleteButton: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: "#7a3633", alignItems: "center", justifyContent: "center" },
+  deleteButtonText: { color: "#ff8a83", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   nav: {
     height: 94,
     borderTopWidth: 1,

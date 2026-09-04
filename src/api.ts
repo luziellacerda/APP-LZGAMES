@@ -66,6 +66,16 @@ export async function register(input:{name:string;phone:string;email:string;cpf:
   return normalizeUser(payload.user);
 }
 
+export async function requestAccountDeletion(password:string) {
+  const token=await SecureStore.getItemAsync(CORE_TOKEN);
+  if(!token) throw new Error('Entre com seu WhatsApp para solicitar a exclusão.');
+  return jsonFetch(`${CORE_API}/auth/delete-request`,{
+    method:'POST',
+    headers:{Authorization:`Bearer ${token}`},
+    body:JSON.stringify({password}),
+  });
+}
+
 function normalizeUser(value:any):User {
   return {id:Number(value?.id??value?.sub??0),name:String(value?.name??value?.nome??'Cliente LZ Games'),email:String(value?.email??''),phone:String(value?.phone??value?.telefone??''),document:String(value?.document??value?.documento??'')};
 }
