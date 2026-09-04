@@ -191,8 +191,7 @@ export default function App() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={s.loginHudTop}><Text style={s.hudCode}>LZ // PLAYER ACCESS</Text><View style={s.hudOnline}><View style={s.hudDot}/><Text style={s.hudOnlineText}>SERVIDOR ONLINE</Text></View></View>
-          <NeonPulseBars />
-          <View style={s.authPanel}><View style={s.panelGlow}/><View style={s.panelEdgeLeft}/><View style={s.panelEdgeRight}/><View style={s.cornerTL}/><View style={s.cornerTR}/><View style={s.cornerBL}/><View style={s.cornerBR}/>
+          <View style={s.authPanel}>
           <View style={s.brandStage}><Text style={s.miniBrand}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.title}>{authMode === "login" ? "PORTAL DO CLIENTE" : "CRIAR CONTA"}</Text><Text style={s.eyebrow}>{authMode === "login" ? "SERVIÇOS · BENEFÍCIOS · TECNOLOGIA" : "NOVO ACESSO · AMBIENTE SEGURO"}</Text><View style={s.brandDivider}><View style={s.dividerLight}/></View></View>
           <View style={s.authTabs}>
             <Pressable
@@ -620,13 +619,6 @@ const s = StyleSheet.create({
   title: { color: "#fff", fontSize: 20, fontWeight: "900", letterSpacing: 3.2, textAlign: "center", textShadowColor: "rgba(83,246,167,.55)", textShadowRadius: 18 },
   subtitle: { color: "#9fb1a9", fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: "center", maxWidth: 320 },
   authPanel: { position: "relative", borderWidth: 1, borderColor: "rgba(83,246,167,.38)", backgroundColor: "rgba(4,15,11,.94)", borderRadius: 22, padding: 14, shadowColor: "#53f6a7", shadowOpacity: .18, shadowRadius: 28, shadowOffset: { width: 0, height: 8 } },
-  panelGlow: { position: "absolute", left: 38, right: 38, top: -1, height: 2, borderRadius: 2, backgroundColor: "#53f6a7", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 14 },
-  panelEdgeLeft: { position: "absolute", left: -1, top: 28, bottom: 28, width: 2, backgroundColor: "#53f6a7", borderRadius: 2, shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 7 },
-  panelEdgeRight: { position: "absolute", right: -1, top: 55, bottom: 55, width: 1, backgroundColor: "#1d7150" },
-  cornerTL: { position: "absolute", left: 8, top: 8, width: 13, height: 13, borderLeftWidth: 2, borderTopWidth: 2, borderColor: "#53f6a7" },
-  cornerTR: { position: "absolute", right: 8, top: 8, width: 13, height: 13, borderRightWidth: 2, borderTopWidth: 2, borderColor: "#53f6a7" },
-  cornerBL: { position: "absolute", left: 8, bottom: 8, width: 13, height: 13, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: "#286b50" },
-  cornerBR: { position: "absolute", right: 8, bottom: 8, width: 13, height: 13, borderRightWidth: 2, borderBottomWidth: 2, borderColor: "#286b50" },
   authTabs: {
     flexDirection: "row",
     backgroundColor: "rgba(12,32,24,.9)",
