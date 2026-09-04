@@ -10,7 +10,7 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "br.com.lzgames.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

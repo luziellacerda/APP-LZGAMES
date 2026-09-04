@@ -130,7 +130,9 @@ export async function loadAgendaServices():Promise<{setores:AgendaSector[];servi
   };
 }
 export async function loadAgendaSlots(date:string,serviceId:number):Promise<AgendaSlot[]>{
-  const payload=await boxAuthFetch(`/agenda/slots?date=${encodeURIComponent(date)}&serviceId=${serviceId}`); return payload.data.slots??[];
+  const payload=await jsonFetch(`${AGENDA_API}?a=slots&data=${encodeURIComponent(date)}&servico_id=${serviceId}`);
+  if(payload?.ok===false) return [];
+  return Array.isArray(payload?.slots)?payload.slots:[];
 }
 export async function bookAgenda(input:{serviceId:number;sectorId:number;date:string;start:string;document:string}){
   const payload=await boxAuthFetch('/agenda/book',{method:'POST',body:JSON.stringify(input)}); return payload.data;
