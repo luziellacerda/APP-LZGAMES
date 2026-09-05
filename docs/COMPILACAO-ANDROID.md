@@ -1,5 +1,7 @@
 # Tutorial completo de compilação Android — LZ-GAMES
 
+Para assumir o projeto desde a instalação das ferramentas, leia primeiro o [handoff completo](HANDOFF-COMPLETO.md). A entrega atual é o [APK 17 / VFX-09](BUILD-17.md); os números de versão abaixo são exemplos e devem ser comparados com o histórico antes de um novo envio.
+
 Este documento explica como preparar o ambiente, testar o projeto e gerar os dois formatos Android:
 
 - **APK:** instalação direta em celulares para testes externos.
@@ -53,6 +55,7 @@ Execute antes de toda compilação:
 
 ```bash
 npm run typecheck
+npm run test:effects
 npx expo-doctor
 git status --short
 ```
@@ -113,7 +116,7 @@ Antes de distribuir uma atualização, abra `app.json` e aumente:
   "expo": {
     "version": "1.0.0",
     "android": {
-      "versionCode": 8
+      "versionCode": 18
     }
   }
 }
@@ -122,7 +125,7 @@ Antes de distribuir uma atualização, abra `app.json` e aumente:
 - `version`: versão visível ao consumidor.
 - `android.versionCode`: número interno inteiro, sempre maior que o build anterior.
 
-Exemplo: depois do build `8`, use `9` na próxima atualização.
+Exemplo: depois do build `17` desta entrega, use um número maior, como `18`, na próxima atualização. O perfil `preview` não incrementa automaticamente; não reenvie o número de um build em andamento por engano.
 
 ## 8. Gerar APK para instalação direta
 
@@ -141,7 +144,7 @@ npx eas-cli build --platform android --profile preview
 Para enviar o build e liberar o terminal sem aguardar:
 
 ```bash
-npx eas-cli build --platform android --profile preview --non-interactive --no-wait
+npx eas-cli build --platform android --profile preview --non-interactive --no-wait --freeze-credentials
 ```
 
 Ao terminar, o Expo apresenta uma página e um link para o arquivo `.apk`. Envie esse link ao testador. No Android, ele deverá permitir a instalação de aplicativos provenientes do navegador ou gerenciador de arquivos.
@@ -239,6 +242,7 @@ Antes de solicitar publicação, conclua:
 git pull --ff-only origin main
 npm ci
 npm run typecheck
+npm run test:effects
 npx expo-doctor
 git status --short
 npx eas-cli whoami
@@ -298,4 +302,3 @@ Consulte a página fornecida pelo EAS. Fechar o terminal após usar `--no-wait` 
 - `eas.json`: perfis APK/AAB e ambiente de produção.
 - `assets/`: ícones e tela de abertura.
 - `play-store/`: materiais preparados para publicação.
-

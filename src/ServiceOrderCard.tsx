@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ServiceOrder } from "./api";
+import { AnimatedIcon, NeonCard } from "./effects/Neon";
 
 const text = (value: unknown) =>
   value === null || value === undefined || value === "" ? "Não informado" : String(value);
@@ -44,9 +45,9 @@ export function ServiceOrderCard({ order }: { order: ServiceOrder }) {
   const equipment = order.equipamento ?? order.equipamento_nome ?? order.modelo ?? "Equipamento";
 
   return (
-    <View style={s.card}>
+    <NeonCard style={s.card}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={s.summary}>
-        <View style={s.icon}><Text style={s.iconText}>🔧</Text></View>
+        <View style={s.icon}><AnimatedIcon name="tools" size={34} /></View>
         <View style={s.summaryBody}>
           <Text style={s.title}>OS #{String(id)}</Text>
           <Text style={s.equipment}>{text(equipment)}</Text>
@@ -104,7 +105,7 @@ export function ServiceOrderCard({ order }: { order: ServiceOrder }) {
           </Section>
         </View>
       ) : null}
-    </View>
+    </NeonCard>
   );
 }
 

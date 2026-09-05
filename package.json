@@ -11,7 +11,8 @@
     "build:android:preview": "npx eas-cli build --platform android --profile preview",
     "build:android:production": "npx eas-cli build --platform android --profile production",
     "submit:android": "npx eas-cli submit --platform android --profile production",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:effects": "node --test scripts/effects.test.cjs"
   },
   "dependencies": {
     "expo": "57.0.20",

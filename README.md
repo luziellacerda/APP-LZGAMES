@@ -37,4 +37,10 @@ Antes de publicar, conclua no Play Console a ficha da loja, classificação indi
 
 ## Documentação
 
+**Comece pelo [handoff completo, do código ao APK](docs/HANDOFF-COMPLETO.md).** Ele explica a instalação em outro computador, as integrações, os efeitos, os testes, o GitHub, o envio ao Expo, o download e a instalação no celular, com comandos e cuidados de segurança.
+
+O [registro do APK 17 / VFX-09](docs/BUILD-17.md) contém o link da compilação e as validações desta entrega.
+
 O passo a passo completo, incluindo APK, AAB, atualização de versão, download, instalação via ADB e solução de erros, está em [docs/COMPILACAO-ANDROID.md](docs/COMPILACAO-ANDROID.md).
+
+Os efeitos neon, ícones Lottie, cenário espacial e seus testes estão documentados em [docs/EFEITOS-VISUAIS.md](docs/EFEITOS-VISUAIS.md).

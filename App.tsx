@@ -4,8 +4,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
-  Easing,
   Linking,
   Pressable,
   RefreshControl,
@@ -31,6 +29,13 @@ import { MatrixBackground } from "./src/MatrixRain";
 import { RaffleDetails } from "./src/RaffleDetails";
 import { ServiceOrderCard } from "./src/ServiceOrderCard";
 import { TurboRamaDetails } from "./src/TurboRamaDetails";
+import { MotionProvider, MotionScrollView } from "./src/effects/Motion";
+import { AnimatedIcon, NeonCard } from "./src/effects/Neon";
+import { type AnimatedIconName } from "./src/effects/animations";
+import { SpaceflightBackground } from "./src/effects/Spaceflight";
+import { TrophyRainBackground } from "./src/effects/TrophyRain";
+import { ElectricMenuEffects, type MenuBounds } from "./src/effects/ElectricMenu";
+import { PreviewRevision } from "./src/effects/PreviewRevision";
 
 type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta";
 const money = (value: number) =>
@@ -38,20 +43,13 @@ const money = (value: number) =>
     value / 100,
   );
 
-function MenuLed() {
-  const spin = React.useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 2600, easing: Easing.linear, useNativeDriver: true }),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [spin]);
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-  return <Animated.View pointerEvents="none" style={[s.menuLedOrbit, { transform: [{ rotate }] }]}><View style={s.menuLedDot}/></Animated.View>;
+export default function App() {
+  return <MotionProvider><AppContent /></MotionProvider>;
 }
 
-export default function App() {
+function AppContent() {
+  const [menuBounds, setMenuBounds] = useState<MenuBounds[]>([]);
+  const [menuEffectsReady, setMenuEffectsReady] = useState(false);
   const [booting, setBooting] = useState(true),
     [signed, setSigned] = useState(false),
     [loading, setLoading] = useState(false);
@@ -180,6 +178,7 @@ export default function App() {
       <SafeAreaView style={s.safe}>
         <MatrixBackground />
         <StatusBar style="light" />
+        <PreviewRevision />
         <ScrollView
           contentContainerStyle={s.loginWrap}
           keyboardShouldPersistTaps="handled"
@@ -349,8 +348,9 @@ export default function App() {
   );
   return (
     <SafeAreaView style={s.safe}>
-      {tab === "agenda" ? <HyperspaceBackground /> : <MatrixBackground />}
+      {tab === "agenda" ? <HyperspaceBackground /> : tab === "turborama" ? <SpaceflightBackground /> : tab === "sorteios" ? <TrophyRainBackground /> : <MatrixBackground />}
       <StatusBar style="light" />
+      <PreviewRevision />
       <View style={s.header}>
         <View>
           <Text style={s.miniLogo}>
@@ -363,7 +363,7 @@ export default function App() {
           <Text style={s.onlineText}>ONLINE</Text>
         </View>
       </View>
-      <ScrollView
+      <MotionScrollView
         style={s.scroll}
         contentContainerStyle={s.content}
         refreshControl={
@@ -378,8 +378,8 @@ export default function App() {
         {tab === "inicio" && (
           <>
             <Text style={s.sectionTitle}>Sua central</Text>
-            <Pressable style={[s.hero, s.green]} onPress={() => setTab("os")}>
-              <Text style={s.cardEmoji}>🛠️</Text>
+            <NeonCard style={[s.hero, s.green]} onPress={() => setTab("os")}>
+              <View style={s.cardEmoji}><AnimatedIcon name="tools" size={54} /></View>
               <Text style={s.cardTag}>ASSISTÊNCIA TÉCNICA</Text>
               <Text style={s.cardTitle}>Minhas OS</Text>
               <Text style={s.cardText}>
@@ -387,24 +387,24 @@ export default function App() {
                 serviço
               </Text>
               <Text style={s.arrow}>ACOMPANHAR →</Text>
-            </Pressable>
-            <Pressable
+            </NeonCard>
+            <NeonCard color="#70d8ff"
               style={[s.hero, s.blue]}
               onPress={() => setTab("agenda")}
             >
-              <Text style={s.cardEmoji}>📅</Text>
+              <View style={s.cardEmoji}><AnimatedIcon name="calendar" size={54} /></View>
               <Text style={s.cardTag}>ATENDIMENTOS</Text>
               <Text style={s.cardTitle}>Agenda</Text>
               <Text style={s.cardText}>
                 {appointments.length} agendamento(s)
               </Text>
               <Text style={s.arrow}>CONSULTAR →</Text>
-            </Pressable>
-            <Pressable
+            </NeonCard>
+            <NeonCard color="#b29aff"
               style={[s.hero, s.purple]}
               onPress={() => setTab("turborama")}
             >
-              <Text style={s.cardEmoji}>🚀</Text>
+              <View style={s.cardEmoji}><AnimatedIcon name="rocket" size={54} /></View>
               <Text style={s.cardTag}>SUITE E LICENÇAS</Text>
               <Text style={s.cardTitle}>TurboRama</Text>
               <Text style={s.cardText}>
@@ -412,12 +412,12 @@ export default function App() {
                 vinculada(s)
               </Text>
               <Text style={s.arrow}>ABRIR →</Text>
-            </Pressable>
-            <Pressable
+            </NeonCard>
+            <NeonCard color="#eeb3ff"
               style={[s.hero, s.raffle]}
               onPress={() => setTab("sorteios")}
             >
-              <Text style={s.cardEmoji}>🏆</Text>
+              <View style={s.cardEmoji}><AnimatedIcon name="trophy" size={54} /></View>
               <Text style={s.cardTag}>PRÊMIOS E CAMPANHAS</Text>
               <Text style={s.cardTitle}>Sorteios</Text>
               <Text style={s.cardText}>
@@ -425,7 +425,7 @@ export default function App() {
                 na lista oficial
               </Text>
               <Text style={s.arrow}>VER SORTEIOS →</Text>
-            </Pressable>
+            </NeonCard>
           </>
         )}
         {tab === "os" && (
@@ -459,12 +459,12 @@ export default function App() {
             />
             {appointments.length ? (
               appointments.map((a, i) => (
-                <View
+                <NeonCard color="#70d8ff"
                   style={[s.item, s.agenda]}
                   key={String(a.agendamento_id ?? a.id ?? i)}
                 >
                   <View style={s.itemIcon}>
-                    <Text>📅</Text>
+                    <AnimatedIcon name="calendar" size={32} />
                   </View>
                   <View style={s.itemBody}>
                     <Text style={s.itemTitle}>
@@ -482,7 +482,7 @@ export default function App() {
                       ● {String(a.status ?? "PENDENTE").toUpperCase()}
                     </Text>
                   </View>
-                </View>
+                </NeonCard>
               ))
             ) : (
               <Empty text="Nenhum agendamento encontrado para seu WhatsApp." />
@@ -510,14 +510,14 @@ export default function App() {
         {tab === "conta" && (
           <>
             <Text style={s.sectionTitle}>Minha conta</Text>
-            <View style={s.profile}>
-              <Text style={s.avatar}>{firstName[0]?.toUpperCase()}</Text>
+            <NeonCard radius={20} style={s.profile}>
+              <AnimatedIcon name="user" size={60} />
               <Text style={s.profileName}>{data?.user.name}</Text>
               <Text style={s.itemText}>{data?.user.email}</Text>
               <Text style={s.itemText}>
                 {data?.user.phone || "WhatsApp não informado"}
               </Text>
-            </View>
+            </NeonCard>
             <Pressable style={s.logout} onPress={exit}>
               <Text style={s.logoutText}>SAIR DA CONTA</Text>
             </Pressable>
@@ -548,21 +548,35 @@ export default function App() {
             </View>
           </>
         )}
-      </ScrollView>
+      </MotionScrollView>
       <View style={s.nav}>
         {(
           ["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]
         ).map((t, i) => (
-          <Pressable key={t} style={s.navItem} onPress={() => setTab(t)}>
-            {tab === t ? <MenuLed /> : null}
-            <Text style={[s.navIcon, tab === t && s.navActive]}>
-              {["⌂", "🔧", "▣", "⚡", "★", "●"][i]}
-            </Text>
+          <NeonCard key={t} electric animate={tab === t} radius={12}
+            decoration={!menuEffectsReady}
+            onLayout={event => {
+              const {x,y,width,height} = event.nativeEvent.layout;
+              setMenuBounds(current => {
+                const old = current[i];
+                if (old?.x === x && old?.y === y && old?.width === width && old?.height === height) return current;
+                const next = [...current]; next[i] = {x,y,width,height}; return next;
+              });
+            }}
+            color={tab === t ? "#72f5cf" : "#344e49"}
+            style={[s.navItem, tab === t && s.navSelected]}
+            accessibilityRole="tab" accessibilityState={{ selected: tab === t }}
+            accessibilityLabel={["Início", "Ordens de serviço", "Agenda", "TurboRama", "Sorteios", "Minha conta"][i]}
+            onPress={() => setTab(t)}>
+            <AnimatedIcon name={(["home", "tools", "calendar", "rocket", "trophy", "user"] as AnimatedIconName[])[i]!} size={28} active={tab === t} />
             <Text style={[s.navText, tab === t && s.navActive]}>
               {["Início", "OS", "Agenda", "Turbo", "Sorteios", "Conta"][i]}
             </Text>
-          </Pressable>
+          </NeonCard>
         ))}
+        <ElectricMenuEffects bounds={menuBounds}
+          selected={(["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]).indexOf(tab)}
+          onReady={() => setMenuEffectsReady(true)} onFailure={() => setMenuEffectsReady(false)} />
       </View>
     </SafeAreaView>
   );
@@ -737,7 +751,6 @@ const s = StyleSheet.create({
     position: "absolute",
     right: 16,
     top: 12,
-    fontSize: 31,
     opacity: 0.95,
   },
   cardTag: {
@@ -864,9 +877,8 @@ const s = StyleSheet.create({
     paddingTop: 5,
     paddingBottom: 23,
   },
-  navItem: { position: "relative", flex: 1, alignItems: "center", justifyContent: "center", gap: 2 },
-  menuLedOrbit: { position: "absolute", top: 3, width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: "rgba(83,246,167,.18)", alignItems: "center" },
-  menuLedDot: { position: "absolute", top: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: "#d6ffe8", borderWidth: 1, borderColor: "#fff", shadowColor: "#53f6a7", shadowOpacity: 1, shadowRadius: 9, elevation: 8 },
+  navItem: { position: "relative", flex: 1, alignItems: "center", justifyContent: "center", gap: 2, marginHorizontal: 2 },
+  navSelected: { backgroundColor: "#102c24" },
   navIcon: { color: "#65766e", fontSize: 16, fontWeight: "800" },
   navText: { color: "#65766e", fontSize: 8, fontWeight: "700" },
   navActive: { color: "#53f6a7" },
