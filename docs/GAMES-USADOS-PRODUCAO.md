@@ -4,7 +4,7 @@ Branch: `feature/appgamesusados-marketplace`. A linha `main` e os módulos de OS
 
 ## O que foi implementado e implantado
 
-- Catálogo responsivo em grade, pesquisa, filtros, paginação, fotos ampliáveis, vídeo sob demanda e publicação em três passos (revisão anterior, agora incluída no próximo APK).
+- Catálogo responsivo em grade, pesquisa, filtros, paginação, fotos ampliáveis, vídeo sob demanda e publicação em três passos (revisão anterior, agora incluída no APK 28 concluído).
 - Edição de título, descrição, preço, categoria, conservação, cidade, UF e foto de capa. Fotos e vídeo existentes são preservados; substituir os arquivos de um anúncio não faz parte desta edição.
 - Concorrência protegida no servidor: um comprador por anúncio, até cinco reservas abertas por comprador mesmo em produtos diferentes, limite horário e diário rechecados sob bloqueio e repetição segura de reserva/status.
 - Chave persistida no banco e impressão SHA-256 do conteúdo do envio: repetir a mesma publicação não cria outro anúncio; reutilizar a chave com conteúdo diferente é rejeitado. O app conserva a chave durante as tentativas do mesmo formulário. Sair do formulário cria um novo envio; sempre conferir Meus anúncios após uma resposta incerta.
@@ -41,11 +41,13 @@ npm run test:marketplace:sql
 node server/marketplace/migrate-production.cjs --apply
 ```
 
-Aplicar as três fontes da API com backup e sem sobrescrever mudanças divergentes. Copiar os três arquivos administrativos para os destinos acima; aplicar o patch de roteamento e navegação. Validar PHP/Node e reiniciar apenas `lzgames-api.service`. Não restaurar o dump sobre dados novos sem planejamento: a migração é aditiva e pode permanecer em rollback de código.
+Aplicar as três fontes da API com backup e sem sobrescrever mudanças divergentes. Copiar os três arquivos administrativos para os destinos acima; aplicar o patch de roteamento e navegação. Validar PHP/Node e reiniciar apenas `lzgames-api.service`. Não restaurar o dump sobre dados novos sem planejamento: a migração é aditiva e pode permanecer no banco. **Um rollback para a rota antiga deve desativar a loja até nova validação**, porque a versão antiga não aplica as decisões de moderação/bloqueio e poderia reexpor anúncios retirados.
 
 Validação desta entrega: 155 testes automatizados gerais, mais 10 testes de integração HTTP/MariaDB/PHP com tabelas fictícias; nenhuma mensagem ou anúncio real criado. Cobrem disputa simultânea do mesmo anúncio, seis reservas concorrentes do mesmo comprador, publicação repetida, edição indevida, versão obsoleta, vencimento, bloqueios, denúncias, moderação e isolamento de avisos. Prévias de interface verificadas com dados sintéticos nas larguras 320/390/430/768; diálogos de avisos, regras, denúncia e edição também exercitados.
 
 A API reiniciou e respondeu saudável; acesso anônimo ao catálogo retorna 401 e ao painel administrativo redireciona ao login. A página administrativa também foi renderizada em leitura local com o schema implantado. Isso não substitui testar a sessão de administrador no navegador do operador.
+
+Também foram corrigidas as [dependências de execução da API compartilhada](../server/core/runtime/README.md), sem alterar regras de OS/agenda/cashback. A auditoria inicial tinha dez dependências sinalizadas (seis altas e quatro moderadas); após atualização, `npm audit --omit=dev` informou zero alertas conhecidos. Mais sete testes de compatibilidade passaram e os dez testes HTTP/SQL foram repetidos antes e depois da implantação. Isso não significa ausência de toda vulnerabilidade nem substitui revisão contínua.
 
 ## Limites de liberação — não ocultar
 

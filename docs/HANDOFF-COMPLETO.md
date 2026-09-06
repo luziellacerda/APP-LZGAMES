@@ -1,6 +1,10 @@
 # Handoff completo — LZ-GAMES, do código ao APK
 
-**Último APK concluído: [26 / VFX-15](BUILD-26.md), baixado, assinatura validada e página de compartilhamento atualizada.** [Baixar APK 26](https://app.lzgames.com.br/convite/lz-games-26.apk). Inclui [Agenda com detalhes ao tocar e confirmação via modelo existente de WhatsApp](AGENDA-DETALHES-E-WHATSAPP.md), Lotties maiores, foguete +30% e código novo a cada compartilhamento. Backend implantado e 137 testes do app aprovados.
+**Atualização: Games Usados está na branch isolada `feature/appgamesusados-marketplace`, entrega [APK 28](BUILD-28.md).** Leia primeiro [produção, moderação, implantação, backup e limitações](GAMES-USADOS-PRODUCAO.md) e o [tutorial atualizado](COMPILACAO-ANDROID.md). Os números e a branch `main` citados no corpo histórico abaixo não incluem a loja. O banco da loja é separado dos demais; credenciais e dados reais não estão no GitHub. O painel administrativo está em `https://sorteios.lzgames.com.br/admin/games-usados`.
+
+**APK atual da loja: [28, concluído e assinatura conferida](BUILD-28.md).** [Baixar APK 28](https://expo.dev/artifacts/eas/CrPbkiJmtDkOOf8T7neFCQC8flwLnxyYd4LMYPJ8urw.apk). As dependências da API também foram corrigidas; consulte [versões, backup, testes e reversão](../server/core/runtime/README.md). A página de compartilhamento do projeto anterior permanece no APK 26 e não foi substituída automaticamente pela branch da loja.
+
+**Histórico do APK 26 / VFX-15:** [registro 26](BUILD-26.md), com [Agenda e confirmação pelo modelo de WhatsApp](AGENDA-DETALHES-E-WHATSAPP.md), Lotties maiores, foguete +30% e código novo a cada compartilhamento. Os 137 testes ali descritos pertencem àquela entrega, não ao total atual.
 
 **Atualização ativa no servidor:** [indicação única global, convite de uso único e correção da agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md). Leia esse registro para regras, migração, backups, validações e limites antifraude. A proteção de backend já atende aos APKs anteriores; alteração visual não aparece num APK sem nova compilação. Os parágrafos de versões antigas abaixo preservam o histórico.
 
@@ -8,13 +12,13 @@ Atualizações posteriores no servidor: [cashback de 5% pela conclusão da OS, c
 
 **Guia histórico da entrega 17 / VFX-09, registrado em 5 de setembro de 2026.** O corpo deste documento preserva os números de versão, comandos de exemplo e resultados daquela entrega; eles não indicam o estado da compilação atual.
 
-Para operar a entrega atual, leia [BUILD-26.md](BUILD-26.md), o [guia de detalhes da Agenda](AGENDA-DETALHES-E-WHATSAPP.md), o [guia de notificações push](NOTIFICACOES-PUSH.md) e o [tutorial de compilação Android](COMPILACAO-ANDROID.md). O restante deste documento descreve a entrega histórica 17; versões, comandos e resultados históricos não substituem os registros atuais.
+Para operar a entrega atual, leia [BUILD-28.md](BUILD-28.md), [operação da loja](GAMES-USADOS-PRODUCAO.md), o [guia de detalhes da Agenda](AGENDA-DETALHES-E-WHATSAPP.md), o [guia de notificações push](NOTIFICACOES-PUSH.md) e o [tutorial de compilação Android](COMPILACAO-ANDROID.md). O restante deste documento descreve a entrega histórica 17; versões, comandos e resultados históricos não substituem os registros atuais.
 
-Consulta somente leitura do novo build: `npx --no-install eas-cli build:view 50448f84-c8fd-4194-8a8d-99d6a32e783f`. `versionCode 26` já foi enviado; conferir o histórico EAS antes de outro envio. O próximo número seria 27 se o histórico não tiver avançado. Não compilar novamente apenas para consultar.
+Consulta somente leitura do build atual: `npx --no-install eas-cli build:view f101a096-2892-48ba-8ce9-702a0975243d`. `versionCode 28` já foi concluído; conferir o histórico EAS antes de escolher outro número. Não compilar novamente apenas para consultar.
 
 Ao preparar outro computador, restaure o `google-services.json` do projeto Firebase existente, pois ele é ignorado pelo Git. Não copie a chave privada FCM para o repositório ou pacote do app. Antes de compilar, execute `npm run check:push`, `npm run typecheck`, `npm run test:push` e os demais testes do tutorial atualizado. A validação local não comprova entrega no celular; os limites e o roteiro de teste físico estão no guia de push.
 
-Este guia histórico ajuda uma pessoa a assumir o projeto, preparar outro computador, testar, modificar, salvar no GitHub, compilar e instalar o aplicativo. O produto descrito é **um aplicativo Android para clientes**. Ele reúne assistência/OS, agenda, TurboBox/TurboRama e sorteios. Este repositório contém o aplicativo, não os bancos de dados nem o código dos servidores dos sites.
+Este guia histórico ajuda uma pessoa a assumir o projeto, preparar outro computador, testar, modificar, salvar no GitHub, compilar e instalar o aplicativo. O produto descrito é **um aplicativo Android para clientes**. Ele reúne assistência/OS, agenda, TurboBox/TurboRama e sorteios; a branch atual acrescenta Games Usados. O repositório contém o aplicativo e integrações selecionadas em `server/`, não dados reais, credenciais ou todos os projetos completos dos servidores.
 
 ## 1. Comece entendendo os quatro lugares
 

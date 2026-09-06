@@ -1,12 +1,12 @@
 # Tutorial completo de compilação Android — LZ-GAMES
 
-**Último APK concluído:** [APK 27 — Games Usados](BUILD-27.md), na branch `feature/appgamesusados-marketplace`. Não troque para `main` para compilar essa funcionalidade; o projeto anterior permanece separado. APK 27 baixado e verificado, com assinatura anterior preservada.
+**Entrega atual: [APK 28 — Games Usados e moderação](BUILD-28.md)**, na branch `feature/appgamesusados-marketplace`. [Acompanhar esta compilação](https://expo.dev/accounts/lzgames/projects/lz-games/builds/f101a096-2892-48ba-8ce9-702a0975243d). Não troque para `main` para compilar a loja; o projeto anterior permanece separado. Consulte o registro 28 para o resultado verificado.
 
 **Entrega anterior: [26 / VFX-15](BUILD-26.md), baixada, validada e publicada.** Não enviar novamente uma versão para consultar o andamento nem esperar recursos novos ao reinstalar um APK anterior.
 
 **Fonte do APK 26:** detalhes completos dos agendamentos, confirmação pelo modelo existente de WhatsApp, Lotties maiores, foguete +30% e convite novo por compartilhamento. As [guardas de indicação e a correção da Agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md) já estão no servidor. Este build foi concluído em 06/09/2026; os passos de outro envio só devem ser executados quando solicitado.
 
-A entrega atual é o [APK 27, versão 1.0.1](BUILD-27.md). Pacote/versão, integridade ZIP, certificado original e Games Usados no bundle foram conferidos. [Consultar o build](https://expo.dev/accounts/lzgames/projects/lz-games/builds/dd94f3ac-cfd1-4f29-a53b-122f335665f9) · [Baixar APK 27](https://expo.dev/artifacts/eas/ERlvnaWIleoa5OvrW6H6kD6sfF7FSeE8Q_voMPY-NQk.apk). Teste físico continua pendente.
+O [APK 27, versão 1.0.1](BUILD-27.md) é anterior à revisão atual. Ele não contém o novo design, edição, bloqueios ou avisos da entrega 28. A [operação atual e seus limites](GAMES-USADOS-PRODUCAO.md) estão documentados separadamente. Teste físico continua necessário.
 
 Para assumir o projeto, consulte também o [guia de notificações push](NOTIFICACOES-PUSH.md), com Firebase/FCM, testes físicos e limites operacionais. O [handoff completo](HANDOFF-COMPLETO.md), o [registro do APK 17 / VFX-09](BUILD-17.md) e o [registro do build 19](BUILD-19.md) são históricos e permanecem como referência. Compare sempre a versão local com o histórico do EAS antes de um novo envio.
 
@@ -33,7 +33,7 @@ npm --version
 ## 2. Baixar o projeto
 
 ```bash
-git clone https://github.com/luziellacerda/APP-LZGAMES.git
+git clone --branch feature/appgamesusados-marketplace https://github.com/luziellacerda/APP-LZGAMES.git
 cd APP-LZGAMES
 ```
 
@@ -41,8 +41,8 @@ Se o projeto já estiver no computador, atualize-o:
 
 ```bash
 cd /caminho/para/APP-LZGAMES
-git switch main
-git pull --ff-only origin main
+git switch feature/appgamesusados-marketplace
+git pull --ff-only origin feature/appgamesusados-marketplace
 ```
 
 Não use `git reset --hard` em uma pasta com alterações que ainda não foram salvas.
@@ -81,6 +81,7 @@ npm run test:referrals
 npm run test:orders
 npm run test:push
 npm run test:effects
+npm run test:marketplace
 npx expo-doctor
 git status --short
 ```
@@ -107,11 +108,13 @@ Para testar por túnel em outro telefone/rede:
 npx expo start --tunnel --clear
 ```
 
-A API de produção configurada é:
+A API de produção TurboBox configurada é:
 
 ```text
 https://turbobox.lzgames.com.br/api/mobile/v1
 ```
+
+A loja, as indicações e os dados CORE também utilizam `https://app.lzgames.com.br/api`, configurável por `EXPO_PUBLIC_CORE_API_URL`. São APIs diferentes; alterar somente `EXPO_PUBLIC_API_URL` não redireciona Games Usados. Nunca colocar senhas do banco, JWT ou chave FCM em variáveis `EXPO_PUBLIC_*`, pois ficam no aplicativo.
 
 Para apontar temporariamente para outro servidor de desenvolvimento:
 
