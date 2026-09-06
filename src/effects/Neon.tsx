@@ -26,6 +26,7 @@ import {
   useMotionAllowed,
   useSurfaceVisibility,
 } from "./Motion";
+import { menuLotties } from "./menuLotties";
 
 const fallback = {
   home: "⌂",
@@ -41,11 +42,15 @@ export function VectorMotion({
   running,
   style,
   onFailure,
+  speed = 1,
+  stillProgress,
 }: {
   source: AnimationObject;
   running: boolean;
   style: StyleProp<ViewStyle>;
   onFailure?: () => void;
+  speed?: number;
+  stillProgress?: number;
 }) {
   const ref = useRef<LottieView>(null);
   useEffect(() => {
@@ -58,6 +63,8 @@ export function VectorMotion({
       source={source}
       autoPlay={running}
       loop
+      speed={speed}
+      progress={running ? undefined : stillProgress}
       useNativeLooping
       resizeMode="contain"
       style={style}
@@ -82,13 +89,15 @@ export const AnimatedIcon = memo(function AnimatedIcon({
   const visible = useContext(SurfaceMotion),
     allowed = useMotionAllowed();
   const [failed, setFailed] = useState(false);
+  const artwork = menuLotties[name];
+  const canvas = size * (artwork?.scale ?? 1);
   return (
     <View
       pointerEvents="none"
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, overflow: "hidden" }}
     >
       {failed ? (
         <Text
@@ -102,9 +111,14 @@ export const AnimatedIcon = memo(function AnimatedIcon({
         </Text>
       ) : (
         <VectorMotion
-          source={iconAnimations[name]}
+          source={artwork?.source ?? iconAnimations[name]}
           running={allowed && visible && active}
-          style={StyleSheet.absoluteFill}
+          speed={artwork?.speed}
+          stillProgress={artwork?.stillProgress}
+          style={artwork ? {
+            position: "absolute", width: canvas, height: canvas,
+            left: (size - canvas) / 2, top: (size - canvas) / 2,
+          } : StyleSheet.absoluteFill}
           onFailure={() => setFailed(true)}
         />
       )}

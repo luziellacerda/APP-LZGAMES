@@ -1,6 +1,6 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
-import {AgendaSector,AgendaService,AgendaSlot,bookAgenda,loadAgendaServices,loadAgendaSlots} from './api';
+import {AgendaSector,AgendaService,AgendaSlot,AgendaStore,Appointment,bookAgenda,loadAgendaServices,loadAgendaSlots} from './api';
 import {NeonCard} from './effects/Neon';
 
 const iso=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -8,17 +8,30 @@ const label=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('pt
 const dateParts=(value:string)=>{const d=new Date(`${value}T12:00:00`);return{weekday:d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','').toUpperCase(),day:String(d.getDate()).padStart(2,'0'),month:d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase()}};
 const clean=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 
-export function AgendaBooking({document,onBooked}:{document:string;onBooked:()=>Promise<void>}){
+export function AgendaBooking({document,onBooked,onStore}:{document:string;onBooked:(appointment?:Appointment)=>Promise<void>;onStore?:(store:AgendaStore|null)=>void}){
   const dates=useMemo(()=>Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return iso(d);}),[]);
   const [services,setServices]=useState<AgendaService[]>([]),[sectors,setSectors]=useState<AgendaSector[]>([]),[service,setService]=useState<AgendaService|null>(null);
   const [search,setSearch]=useState(''),[sector,setSector]=useState<number|null>(null);
   const [date,setDate]=useState(dates[0]!),[slots,setSlots]=useState<AgendaSlot[]>([]),[slot,setSlot]=useState<AgendaSlot|null>(null);
   const [calendar,setCalendar]=useState<Record<string,{loading:boolean;free:number;reason:string}>>({});
   const [cpf,setCpf]=useState(document),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
-  useEffect(()=>{loadAgendaServices().then(v=>{setServices(v.servicos);setSectors(v.setores)}).catch(e=>setMessage(e.message));},[]);
+  const bookingInFlight=useRef(false);
+  useEffect(()=>{let active=true;loadAgendaServices().then(v=>{if(!active)return;setServices(v.servicos);setSectors(v.setores);onStore?.(v.loja)}).catch(e=>{if(active)setMessage(e.message)});return()=>{active=false};},[onStore]);
   useEffect(()=>{if(!service)return;setBusy(true);setSlot(null);setMessage('');loadAgendaSlots(date,service.id).then(setSlots).catch(e=>{setSlots([]);setMessage(e.message)}).finally(()=>setBusy(false));},[date,service]);
   useEffect(()=>{if(!service){setCalendar({});return;}setCalendar(Object.fromEntries(dates.map(day=>[day,{loading:true,free:0,reason:''}])));let active=true;Promise.all(dates.map(async day=>{try{const daySlots=await loadAgendaSlots(day,service.id);const free=daySlots.filter(item=>!item.ocupado).length;return[day,{loading:false,free,reason:free?'':daySlots.length?'Agenda lotada':'Sem expediente'}] as const;}catch(error){return[day,{loading:false,free:0,reason:error instanceof Error?error.message:'Dia indisponível'}] as const;}})).then(entries=>{if(!active)return;const next=Object.fromEntries(entries);setCalendar(next);const first=dates.find(day=>next[day]?.free>0);if(first&&!next[date]?.free)setDate(first);});return()=>{active=false};},[service,dates]);
-  const confirm=async()=>{if(!service||!slot)return;setBusy(true);setMessage('');try{const r=await bookAgenda({serviceId:service.id,sectorId:service.setor_id,date,start:slot.inicio,document:cpf});setMessage(`✅ Agendamento ${r.protocolo} confirmado. A confirmação foi enviada ao seu WhatsApp.`);setSlot(null);await onBooked();}catch(e){setMessage(e instanceof Error?e.message:'Não foi possível agendar.');}finally{setBusy(false)}};
+  const confirm=async()=>{
+    if(!service||!slot||bookingInFlight.current)return;
+    bookingInFlight.current=true;setBusy(true);setMessage('');
+    try{
+      const r=await bookAgenda({serviceId:service.id,sectorId:service.setor_id,date,start:slot.inicio,document:cpf});
+      const confirmation=`✅ Agendamento ${r.protocolo} confirmado. ${r.notificacao==='enviado'?'A confirmação foi encaminhada para o seu WhatsApp.':'Não foi possível confirmar o envio pelo WhatsApp.'}`;
+      setMessage(confirmation);setSlot(null);
+      // A failed list refresh must not turn an accepted booking into an invitation to book again.
+      try{await onBooked(r.agendamento);}
+      catch{setMessage(`${confirmation} Não foi possível atualizar a lista agora. Seu agendamento já está confirmado.`);}
+    }catch(e){setMessage(e instanceof Error?e.message:'Não foi possível agendar.');}
+    finally{bookingInFlight.current=false;setBusy(false);}
+  };
   const ignored=new Set(['o','a','de','do','da','meu','minha','nao','esta','com','para','quero']);
   const terms=clean(search).split(/\s+/).filter(v=>v.length>1&&!ignored.has(v));
   const matches=(search.trim().length>=2||sector!==null)?services.filter(v=>(sector===null||v.setor_id===sector)&&(!terms.length||terms.some(t=>clean(v.nome).includes(t)))).slice(0,15):[];

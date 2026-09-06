@@ -1,0 +1,23 @@
+--- a/mobile-api.php
++++ b/mobile-api.php
+@@ -97,17 +97,17 @@
+     $variants=mobile_phone_variants((string)($user['phone']??''));
+     $orders=[];$appointments=[];
+     if($variants&&($main=mobile_legacy_db('main'))){$where=[];$params=[];foreach($variants as $v){$where[]='telefone_key=?';$params[]=$v;$where[]="REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(telefone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?";$params[]='%'.$v;}$q=$main->prepare('SELECT os_id,cliente_id,cliente,cpf,telefone,status,equipamento_id,equipamento,marca_id,marca,modelo_id,modelo,valor,desconto,tipo_desconto,subtotal,total_produtos,total_servicos,frete,entrada,mao_obra,valor_servico,tecnico_id,tecnico_nome,laudo,defeito,condicoes,acessorios,numero_serie,rastreio,obs,dias_garantia,dias_validade,pago,cpf_nota,data_entrada,data_entrega FROM vw_os_portal_cliente WHERE '.implode(' OR ',$where).' ORDER BY data_entrada DESC,os_id DESC LIMIT 100');$q->execute($params);$orders=$q->fetchAll();}
+-    if($variants&&($agenda=mobile_legacy_db('agenda'))){$where=[];$params=[];foreach($variants as $v){$where[]='telefone_key=?';$params[]=$v;}$q=$agenda->prepare('SELECT agendamento_id,data_hora,status,atendimento,prioridade,janela_inicio,janela_fim,servico_nome,profissional_nome,data_d,hora_i,hora_f FROM vw_agendamentos_full_tel WHERE '.implode(' OR ',$where).' ORDER BY data_hora DESC,agendamento_id DESC LIMIT 100');$q->execute($params);$appointments=$q->fetchAll();}
++    if($variants&&($agenda=mobile_legacy_db('agenda'))){$where=[];$params=[];foreach($variants as $v){$where[]='telefone_key=?';$params[]=$v;}$q=$agenda->prepare('SELECT agendamento_id,data_hora,status,atendimento,prioridade,janela_inicio,janela_fim,servico_nome,profissional_nome,usuario_nome AS cliente_nome,telefone,data_d,hora_i,hora_f FROM vw_agendamentos_full_tel WHERE '.implode(' OR ',$where).' ORDER BY data_hora DESC,agendamento_id DESC LIMIT 100');$q->execute($params);$appointments=$q->fetchAll();}
+     return ['assistance'=>['orders'=>$orders],'scheduling'=>['appointments'=>$appointments]];
+ }
+ 
+ function mobile_agenda_request(string $action, array $query=[], ?array $body=null): array {
+     $url='https://app.lzgames.com.br/sistema/agenda/?'.http_build_query(['a'=>$action]+$query);
+     $ch=curl_init($url);
+-    $options=[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_HTTPHEADER=>['Accept: application/json']];
++    $options=[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>mobile_agenda_request_timeout($action),CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_HTTPHEADER=>['Accept: application/json']];
+     if($body!==null){$options[CURLOPT_POST]=true;$options[CURLOPT_POSTFIELDS]=json_encode($body,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);$options[CURLOPT_HTTPHEADER]=['Accept: application/json','Content-Type: application/json'];}
+     curl_setopt_array($ch,$options);$raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$error=curl_error($ch);curl_close($ch);
+-    if($raw===false||$error!=='') mobile_json(502,['ok'=>false,'error'=>['code'=>'agenda_unavailable','message'=>'A agenda está temporariamente indisponível.']]);
++    if($raw===false||$error!=='') mobile_json(502,['ok'=>false,'error'=>['code'=>'agenda_unavailable','message'=>$action==='criarAgendamento'?'Não foi possível confirmar a resposta da agenda. Confira seus agendamentos antes de tentar novamente.':'A agenda está temporariamente indisponível.']]);
+     $payload=json_decode((string)$raw,true);
+     if(!is_array($payload)) mobile_json(502,['ok'=>false,'error'=>['code'=>'agenda_invalid_response','message'=>'A agenda retornou uma resposta inválida.']]);
+     return ['status'=>$status?:200,'payload'=>$payload];

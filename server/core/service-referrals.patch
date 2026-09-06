@@ -1,0 +1,95 @@
+--- a/routes/referrals.js
++++ b/routes/referrals.js
+@@ -8,6 +8,7 @@
+ const db = require("../db");
+ const { normalizePhone } = require("../lib/phoneUtils");
+ const auth = require("../middleware/referralAuth");
++const { confirmLegacy } = require("../lib/serviceReferral");
+ const { REFERRAL_SECRET, SERVICE_SECRET } = require("../config/jwtConfig");
+ // -----------------------------------------------------------------------------
+ // Configurações
+@@ -168,6 +169,13 @@
+ 
+     const row = rows && rows[0] ? rows[0] : {};
+ 
++    // Fixed 5% rule applies to future authenticated OS completions after explicit activation.
++    // Historical approvals remain unchanged; no tier percentage is used to recalculate them.
++    const [policyRows] = await mainDb.query("SELECT enabled,min_os_id FROM lz_service_referral_policy WHERE id=1");
++    const completionProgram = Number(policyRows[0]?.enabled) === 1;
++    const completionTier = { id: "service5_note_total_v1", threshold: 0, label: "Indicação de serviço", percent: 5,
++      description: `5% do valor total da nota, incluindo serviços e peças, após descontos e antes de abater a entrada. Somente notas nº ${Number(policyRows[0]?.min_os_id)} em diante, finalizadas após a ativação. Crédito ao indicador; uma aprovação por indicação.` };
++
+     const summary = {
+       indicacoes_total: Number(row.total || 0),
+       indicacoes_pendentes: Number(row.pendentes || 0),
+@@ -176,9 +184,10 @@
+       cashback_aprovado_centavos: Number(row.cashback_aprovado_centavos || 0),
+       indicacoes_validas: Number(row.concluidas || 0),
+       referral_program: {
+-        tiers: REFERRAL_TIERS,
+-        current_tier: getReferralTier(Number(row.concluidas || 0)),
+-        based_on: "concluidas",
++        tiers: completionProgram ? [completionTier] : REFERRAL_TIERS,
++        current_tier: completionProgram ? completionTier : getReferralTier(Number(row.concluidas || 0)),
++        based_on: completionProgram ? "os_finalizada_total_nota" : "concluidas",
++        ...(completionProgram ? { eligible_from_os_id: Number(policyRows[0]?.min_os_id) } : {}),
+       },
+     };
+ 
+@@ -488,8 +497,8 @@
+       });
+     }
+     if (
+-      !Number.isInteger(Number(indicacao_id)) ||
+-      !Number.isInteger(Number(os_id)) ||
++      !Number.isSafeInteger(Number(indicacao_id)) || Number(indicacao_id) < 1 ||
++      !Number.isSafeInteger(Number(os_id)) || Number(os_id) < 1 ||
+       !Number.isInteger(cashbackVal) ||
+       cashbackVal < 0 ||
+       cashbackVal > 100000000
+@@ -500,36 +509,25 @@
+       });
+     }
+ 
+-    const [updateResult] = await cashbackDb.query(
+-      `
+-      UPDATE indicacoes
+-      SET
+-        status = ?,
+-        cashback_valor_centavos = ?,
+-        os_concluida_id = ?,
+-        updated_at = NOW()
+-      WHERE id = ?
+-      `,
+-      [newStatus, cashbackVal, os_id, indicacao_id]
+-    );
+-    if (!updateResult.affectedRows) {
++    const result = await confirmLegacy(mainDb, cashbackDb, {
++      referralId: Number(indicacao_id), osId: Number(os_id), status: newStatus, amount: cashbackVal,
++    });
++    if (["automated_only", "managed_credit"].includes(result.outcome)) return res.status(409).json({
++      ok: false, error: "A aprovação é automática ao finalizar a OS no painel. Esta integração não pode atribuir ou sobrescrever o valor."
++    });
++    if (result.outcome === "not_found") {
+       return res.status(404).json({
+         ok: false,
+         error: "Indicação não encontrada.",
+       });
+     }
+ 
+-    const [rows] = await cashbackDb.query(
+-      `SELECT * FROM indicacoes WHERE id = ? LIMIT 1`,
+-      [indicacao_id]
+-    );
+-
+     return res.json({
+       ok: true,
+-      data: rows && rows[0] ? rows[0] : null,
++      data: result.row,
+     });
+   } catch (err) {
+-    console.error("[referrals] erro em POST /referrals/confirm-from-os:", err);
++    console.error("[referrals] confirmação por OS não concluída; verifique a integração.");
+     return res.status(500).json({
+       ok: false,
+       error: "Erro interno ao atualizar indicação.",

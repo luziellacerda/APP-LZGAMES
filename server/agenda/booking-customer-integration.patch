@@ -1,0 +1,30 @@
+--- a/index.php
++++ b/index.php
+@@ -1,6 +1,7 @@
+ <?php
+ // index.php — Agenda + Enriquecimento + Modal + Cupom + Sorteio + UI 3D + máscaras + CONFIRMS (v4.1-patch-e164)
+ declare(strict_types=1);
++require_once __DIR__.'/booking-customer.php';
+ 
+ /* ===== DEBUG ===== */
+ ini_set('display_errors','0'); ini_set('display_startup_errors','0');
+@@ -267,16 +268,15 @@
+           $profissional=profissional_livre($db,$profissionais,$data,$ini,$fim);
+           if(!$profissional){ $db->rollBack(); http_response_code(409); echo json_encode(['error'=>'slot_ocupado']); break; }
+           $profissionalId=(int)$profissional['id']; $profNome=(string)$profissional['nome'];
+-          $st=$db->prepare("SELECT id,nome,cpf FROM usuarios WHERE telefone=:t LIMIT 1"); $st->execute([':t'=>$telefone]); $rowUser=$st->fetch(); $uid=(int)($rowUser['id']??0);
+-          if(!$uid){ $st=$db->prepare("INSERT INTO usuarios (nome,telefone,cpf) VALUES (:n,:t,:c)"); $st->execute([':n'=>$nome,':t'=>$telefone,':c'=>$cpf]); $uid=(int)$db->lastInsertId(); }
+-          else{ if($cpf && $cpf!==($rowUser['cpf']??null)) $db->prepare("UPDATE usuarios SET cpf=:c WHERE id=:id")->execute([':c'=>$cpf,':id'=>$uid]);
+-                if($nome && mb_strlen(trim($nome))>=3 && trim($nome)!==trim((string)($rowUser['nome']??''))) $db->prepare("UPDATE usuarios SET nome=:n WHERE id=:id")->execute([':n'=>$nome,':id'=>$uid]); }
++          $uid=agenda_booking_customer($db,$nome,$telefone,$cpf);
+           $cancel=substr(bin2hex(random_bytes(8)),0,12); $dtStr="$data $ini:00";
+           $st=$db->prepare("INSERT INTO agendamentos (usuario_id,servico_id,profissional_id,data_hora,status,atendimento,prioridade,janela_inicio,janela_fim,cancel_code) VALUES (:u,:s,:p,:dt,:st,:at,:pr,:ji,:jf,:cc)");
+           $st->execute([':u'=>$uid,':s'=>$servico_id,':p'=>$profissionalId,':dt'=>$dtStr,':st'=>$statusIni,':at'=>'loja',':pr'=>'normal',':ji'=>$ini.':00',':jf'=>$fim.':00',':cc'=>$cancel]);
+           $aid=(int)$db->lastInsertId(); $protocolo=sprintf('LZ-%s-%06d',(new DateTime($data))->format('Y'),$aid);
+           $cupom=gerar_cupom($db,$uid,$telefone,$aid); $db->commit();
+         }catch(Throwable $e){ $db->rollBack(); $msg=$e->getMessage();
++          if($e instanceof AgendaCustomerConflict){ http_response_code(409); echo json_encode(['error'=>$msg]); break; }
++          if(stripos($msg,'Duplicate entry')!==false && stripos($msg,'uq_usuario_cpf')!==false){ http_response_code(409); echo json_encode(['error'=>'cpf_em_uso']); break; }
+           if(stripos($msg,'Duplicate entry')!==false && stripos($msg,'uq_slot_ativo')!==false){ http_response_code(409); echo json_encode(['error'=>'slot_ocupado']); break; }
+           if(stripos($msg,'DIA LOTADO')!==false){ http_response_code(409); echo json_encode(['error'=>'dia_lotado']); break; }
+           error_log('criarAgendamento: '.$msg); http_response_code(500); echo json_encode(['error'=>'server']); break;

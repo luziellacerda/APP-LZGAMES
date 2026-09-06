@@ -1,9 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import LottieView from "lottie-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Linking,
   Pressable,
   RefreshControl,
@@ -17,13 +18,23 @@ import {
 import {
   hasSession,
   HomeData,
+  AgendaStore,
+  AppPresence,
+  RaffleAnnouncement,
   loadHome,
+  loadRaffleInbox,
   login,
   logout,
   register,
   requestAccountDeletion,
+  syncRafflePresence,
+  acceptReferralInvite,
+  validateReferralInvite,
 } from "./src/api";
+import { completeReferralEntry } from "./src/referralEntry";
 import { AgendaBooking } from "./src/AgendaBooking";
+import { AppointmentCard } from "./src/AppointmentCard";
+import { ReferralRewards } from "./src/ReferralRewards";
 import { HyperspaceBackground } from "./src/HyperspaceBackground";
 import { MatrixBackground } from "./src/MatrixRain";
 import { RaffleDetails } from "./src/RaffleDetails";
@@ -31,13 +42,24 @@ import { ServiceOrderCard } from "./src/ServiceOrderCard";
 import { TurboRamaDetails } from "./src/TurboRamaDetails";
 import { MotionProvider, MotionScrollView } from "./src/effects/Motion";
 import { AnimatedIcon, NeonCard } from "./src/effects/Neon";
+import { CardLottie } from "./src/effects/CardLottie";
 import { type AnimatedIconName } from "./src/effects/animations";
 import { SpaceflightBackground } from "./src/effects/Spaceflight";
-import { TrophyRainBackground } from "./src/effects/TrophyRain";
+import { CoinRainBackground } from "./src/effects/CoinRainBackground";
+import { TrophyLottie } from "./src/effects/TrophyLottie";
 import { ElectricMenuEffects, type MenuBounds } from "./src/effects/ElectricMenu";
 import { PreviewRevision } from "./src/effects/PreviewRevision";
+import { dismissRaffleNotifications, preparePushRegistration, supportsRemotePush, useRafflePush } from "./src/push";
 
-type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta";
+type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta" | "cashback";
+function announcementDestination(type:RaffleAnnouncement['event_type']):{screen:Tab;tag:string;action:string}|null{
+  switch(type){
+    case 'service_order':return {screen:'os',tag:'◉ AVISO DE OS',action:'VER ORDEM DE SERVIÇO →'};
+    case 'appointment':return {screen:'agenda',tag:'◉ AVISO DE AGENDAMENTO',action:'VER AGENDAMENTO →'};
+    case 'raffle':case null:case undefined:return {screen:'sorteios',tag:'◉ AVISO DE SORTEIO',action:'VER CAMPANHA →'};
+    default:return null;
+  }
+}
 const money = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
     value / 100,
@@ -57,6 +79,10 @@ function AppContent() {
     [password, setPassword] = useState(""),
     [error, setError] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [entryInvite,setEntryInvite]=useState("");
+  const [showEntryInvite,setShowEntryInvite]=useState(false);
+  const [authReady,setAuthReady]=useState(false);
+  const entryFlow=useRef({authenticated:false,busy:false});
   const [newName, setNewName] = useState(""),
     [newPhone, setNewPhone] = useState(""),
     [newEmail, setNewEmail] = useState(""),
@@ -66,60 +92,86 @@ function AppContent() {
   const [data, setData] = useState<HomeData | null>(null),
     [tab, setTab] = useState<Tab>("inicio");
   const [deletePassword, setDeletePassword] = useState("");
+  const [agendaStore, setAgendaStore] = useState<AgendaStore | null>(null);
+  const [appPresence, setAppPresence] = useState<AppPresence | null>(null);
+  const [announcements, setAnnouncements] = useState<RaffleAnnouncement[]>([]);
+  const [pushBusy,setPushBusy]=useState(false);
+  const [raffleMessagingBusy, setRaffleMessagingBusy] = useState(false);
+  useRafflePush(signed,{
+    onInbox:(presence,items)=>{setAppPresence(presence);setAnnouncements(items);},
+    onOpen:(screen)=>{setTab(screen);void loadHome().then(setData).catch(()=>{});},
+  });
   const refresh = async () => {
     setLoading(true);
     setError("");
     try {
-      setData(await loadHome());
+      const home=await loadHome();
+      setData(home);
       setSigned(true);
+      const presence=await syncRafflePresence().catch(()=>null);
+      if(presence)setAppPresence(presence);
+      const inbox=await loadRaffleInbox().catch(()=>null);
+      if(inbox){setAppPresence(inbox.presence);setAnnouncements(inbox.announcements);}
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha ao carregar.");
+      return false;
     } finally {
       setLoading(false);
       setBooting(false);
     }
   };
   useEffect(() => {
-    hasSession().then((ok) => (ok ? refresh() : setBooting(false)));
+    hasSession().then(async (ok) => { if(ok)await refresh();else setBooting(false); });
   }, []);
   useEffect(() => {
     if (!signed || tab !== "sorteios") return;
     const timer = setInterval(
-      () =>
-        loadHome()
+      () => {
+        if(AppState.currentState!=='active')return;
+        void loadRaffleInbox().then(inbox=>{setAppPresence(inbox.presence);setAnnouncements(inbox.announcements);}).catch(()=>{});
+        void loadHome()
           .then(setData)
-          .catch(() => {}),
+          .catch(() => {});
+      },
       15000,
     );
     return () => clearInterval(timer);
   }, [signed, tab]);
   const enter = async () => {
-    if (!loginValue.trim() || !password)
+    if(loading||entryFlow.current.busy)return;
+    if (!authReady && (!loginValue.trim() || !password))
       return setError("Informe e-mail/WhatsApp e senha.");
     setLoading(true);
     setError("");
     try {
-      await login(loginValue.trim(), password);
-      await refresh();
+      const done=await completeReferralEntry(entryFlow.current,entryInvite,{
+        validate:validateReferralInvite,authenticate:()=>login(loginValue.trim(),password),
+        onAuthenticated:()=>setAuthReady(true),bind:acceptReferralInvite,open:refresh,
+      });
+      if(done){setAuthReady(false);setEntryInvite("");setShowEntryInvite(false);}
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível entrar.");
       setLoading(false);
     }
   };
   const createAccount = async () => {
-    if (newPassword !== confirmPassword)
+    if(loading||entryFlow.current.busy)return;
+    if (!authReady && newPassword !== confirmPassword)
       return setError("As senhas não são iguais.");
     setLoading(true);
     setError("");
     try {
-      await register({
+      const done=await completeReferralEntry(entryFlow.current,entryInvite,{
+        validate:validateReferralInvite,authenticate:()=>register({
         name: newName.trim(),
         phone: newPhone,
         email: newEmail.trim(),
         cpf: newCpf,
         password: newPassword,
+        }),onAuthenticated:()=>setAuthReady(true),bind:acceptReferralInvite,open:refresh,
       });
-      await refresh();
+      if(done){setAuthReady(false);setEntryInvite("");setShowEntryInvite(false);}
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Não foi possível criar sua conta.",
@@ -128,12 +180,80 @@ function AppContent() {
     }
   };
   const exit = async () => {
+    if(loading||pushBusy)return;
     setLoading(true);
-    await logout();
+    let remoteUnlinked=false;
+    try { ({remoteUnlinked}=await logout()); }
+    catch { Alert.alert('Não foi possível sair','Conecte-se à internet e tente novamente para desvincular com segurança os avisos deste aparelho.');setLoading(false);return; }
+    await dismissRaffleNotifications().catch(()=>{});
     setData(null);
+    setAppPresence(null);
+    setAnnouncements([]);
     setSigned(false);
+    entryFlow.current.authenticated=false;
+    setAuthReady(false);setAuthMode("login");setEntryInvite("");setShowEntryInvite(false);
     setPassword("");
     setLoading(false);
+    if(!remoteUnlinked)Alert.alert('Sessão encerrada neste celular','Sua sessão estava expirada. Os dados de acesso locais foram removidos, mas não foi possível confirmar a desvinculação dos avisos no servidor. Você pode desativar as notificações do LZ-GAMES nas configurações do celular.');
+  };
+  const updatePush=async()=>{
+    if(pushBusy||loading||raffleMessagingBusy)return;
+    setPushBusy(true);
+    try{
+      if(appPresence?.push?.enabled){
+        const presence=await syncRafflePresence(undefined,{enabled:false,permission:'undetermined',token:null});
+        setAppPresence(presence);
+        await dismissRaffleNotifications('raffles').catch(()=>{});
+        return;
+      }
+      const registration=await preparePushRegistration(true);
+      const presence=await syncRafflePresence(undefined,registration);
+      setAppPresence(presence);
+      if(!registration.enabled){
+        Alert.alert('Notificações não autorizadas','Você continua usando o app normalmente. Para receber avisos, permita as notificações nas configurações do celular.',[
+          {text:'Agora não',style:'cancel'},{text:'Abrir configurações',onPress:()=>{void Linking.openSettings();}},
+        ]);
+      }else Alert.alert('Notificações ativadas','Este celular está cadastrado para receber avisos de sorteios. Toque no aviso para abrir a aba Sorteios.');
+    }catch(e){Alert.alert('Notificações',e instanceof Error?e.message:'Não foi possível atualizar as notificações.');}
+    finally{setPushBusy(false);}
+  };
+  const updateServicePush=async()=>{
+    if(pushBusy||loading||raffleMessagingBusy)return;
+    setPushBusy(true);
+    try{
+      if(appPresence?.push?.serviceEnabled){
+        const presence=await syncRafflePresence(undefined,{scope:'services',enabled:false,permission:'undetermined',token:null});
+        setAppPresence(presence);
+        await dismissRaffleNotifications('services').catch(()=>{});
+        return;
+      }
+      const registration=await preparePushRegistration(true);
+      const presence=await syncRafflePresence(undefined,{...registration,scope:'services'});
+      setAppPresence(presence);
+      if(!registration.enabled){
+        Alert.alert('Notificações não autorizadas','Para receber avisos de OS e agendamentos, permita as notificações nas configurações do celular.',[
+          {text:'Agora não',style:'cancel'},
+          {text:'Abrir configurações',onPress:()=>{void Linking.openSettings().catch(()=>{Alert.alert('Configurações','Abra as configurações do celular e permita as notificações do LZ-GAMES.');});}},
+        ]);
+      }else Alert.alert('Avisos de OS e agendamentos ativados','Este celular receberá alterações de status das OS, lembretes de OS ativas há 3 dias sem alterações e avisos de agendamentos 6, 3 e 1 hora antes. Toque no aviso para abrir a tela correspondente.');
+    }catch(e){Alert.alert('OS e agendamentos',e instanceof Error?e.message:'Não foi possível atualizar os avisos. Tente novamente.');}
+    finally{setPushBusy(false);}
+  };
+  const updateRaffleMessaging = async (enabled:boolean) => {
+    if (loading || pushBusy || raffleMessagingBusy) return;
+    setRaffleMessagingBusy(true);
+    setLoading(true);
+    setError("");
+    try {
+      const presence=await syncRafflePresence(enabled);
+      setAppPresence(presence);
+      Alert.alert(enabled?"Avisos ativados":"Avisos desativados",enabled?"Você receberá comunicados de sorteios pelo WhatsApp cadastrado. Você pode desligar quando quiser.":"Você não receberá mais avisos promocionais de sorteios pelo WhatsApp.");
+    } catch (e) {
+      Alert.alert("Avisos de sorteios", e instanceof Error?e.message:"Não foi possível atualizar sua preferência. Tente novamente.");
+    } finally {
+      setRaffleMessagingBusy(false);
+      setLoading(false);
+    }
   };
   const askAccountDeletion = () => {
     if (!deletePassword) return setError("Digite sua senha para confirmar a solicitação.");
@@ -188,6 +308,7 @@ function AppContent() {
           <View style={s.brandStage}><Text style={s.miniBrand}>LZ <Text style={s.logoAccent}>GAMES</Text></Text><Text style={s.title}>{authMode === "login" ? "PORTAL DO CLIENTE" : "CRIAR CONTA"}</Text><Text style={s.eyebrow}>{authMode === "login" ? "SERVIÇOS · BENEFÍCIOS · TECNOLOGIA" : "NOVO ACESSO · AMBIENTE SEGURO"}</Text><View style={s.brandDivider}><View style={s.dividerLight}/></View></View>
           <View style={s.authTabs}>
             <Pressable
+              disabled={loading||authReady}
               style={[s.authTab, authMode === "login" && s.authTabActive]}
               onPress={() => {
                 setAuthMode("login");
@@ -204,6 +325,7 @@ function AppContent() {
               </Text>
             </Pressable>
             <Pressable
+              disabled={loading||authReady}
               style={[s.authTab, authMode === "register" && s.authTabActive]}
               onPress={() => {
                 setAuthMode("register");
@@ -220,6 +342,15 @@ function AppContent() {
               </Text>
             </Pressable>
           </View>
+          <Pressable testID="entry-invite-toggle" accessibilityRole="button" accessibilityState={{expanded:showEntryInvite}} disabled={loading} onPress={()=>setShowEntryInvite(value=>!value)}>
+            <Text style={s.consent}>{showEntryInvite?"INDICAÇÃO (OPCIONAL)":"RECEBI UM CONVITE  +"}</Text>
+          </Pressable>
+          {showEntryInvite?<View style={s.form}>
+            <TextInput testID="entry-invite-input" accessibilityLabel="Convite recebido antes do primeiro acesso" style={s.input} value={entryInvite} onChangeText={setEntryInvite} editable={!loading} autoCapitalize="none" autoCorrect={false} maxLength={2048} placeholder="Cole o código ou link do convite" placeholderTextColor="#71817a" />
+            <Text style={s.consent}>Ao continuar com um convite preenchido, você autoriza vinculá-lo à sua conta. No primeiro acesso elegível ao app, quem indicou recebe R$ 9,90 em crédito para serviços, sem saque. Acessos anteriores não geram novo bônus.</Text>
+          </View>:null}
+          {authReady?<Text style={s.consent}>Sua conta já foi acessada. Confira o convite e continue; não é necessário cadastrar novamente. Para entrar sem indicação, apague o convite antes de continuar.</Text>:null}
+          {authReady?<Pressable accessibilityRole="button" disabled={loading} onPress={exit}><Text style={s.consent}>SAIR DESTA CONTA</Text></Pressable>:null}
           {authMode === "login" ? (
             <View style={s.form}>
                 <Text style={s.inputLabel}>IDENTIFICAÇÃO DO JOGADOR</Text><View style={s.inputShell}><Text style={s.inputIcon}>◈</Text><TextInput
@@ -227,6 +358,7 @@ function AppContent() {
                 placeholder="E-mail ou WhatsApp"
                 placeholderTextColor="#71817a"
                 value={loginValue}
+                editable={!loading&&!authReady}
                 onChangeText={setLoginValue}
                 autoCapitalize="none"
               /></View>
@@ -235,6 +367,7 @@ function AppContent() {
                 placeholder="Senha"
                 placeholderTextColor="#71817a"
                 value={password}
+                editable={!loading&&!authReady}
                 onChangeText={setPassword}
                 secureTextEntry
                 onSubmitEditing={enter}
@@ -244,7 +377,7 @@ function AppContent() {
                 {loading ? (
                   <ActivityIndicator color="#06110d" />
                 ) : (
-                  <Text style={s.primaryText}>INICIAR SESSÃO  ▶</Text>
+                  <Text style={s.primaryText}>{authReady?"CONTINUAR  ▶":"INICIAR SESSÃO  ▶"}</Text>
                 )}
               </Pressable>
             </View>
@@ -255,6 +388,7 @@ function AppContent() {
                 placeholder="Nome completo"
                 placeholderTextColor="#71817a"
                 value={newName}
+                editable={!loading&&!authReady}
                 onChangeText={setNewName}
                 autoCapitalize="words"
               />
@@ -263,6 +397,7 @@ function AppContent() {
                 placeholder="WhatsApp com DDD"
                 placeholderTextColor="#71817a"
                 value={newPhone}
+                editable={!loading&&!authReady}
                 onChangeText={setNewPhone}
                 keyboardType="phone-pad"
               />
@@ -271,6 +406,7 @@ function AppContent() {
                 placeholder="E-mail"
                 placeholderTextColor="#71817a"
                 value={newEmail}
+                editable={!loading&&!authReady}
                 onChangeText={setNewEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -280,6 +416,7 @@ function AppContent() {
                 placeholder="CPF"
                 placeholderTextColor="#71817a"
                 value={newCpf}
+                editable={!loading&&!authReady}
                 onChangeText={setNewCpf}
                 keyboardType="number-pad"
               />
@@ -288,6 +425,7 @@ function AppContent() {
                 placeholder="Senha (mínimo 8 caracteres, letras e números)"
                 placeholderTextColor="#71817a"
                 value={newPassword}
+                editable={!loading&&!authReady}
                 onChangeText={setNewPassword}
                 secureTextEntry
               />
@@ -296,6 +434,7 @@ function AppContent() {
                 placeholder="Confirmar senha"
                 placeholderTextColor="#71817a"
                 value={confirmPassword}
+                editable={!loading&&!authReady}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
               />
@@ -312,7 +451,7 @@ function AppContent() {
                 {loading ? (
                   <ActivityIndicator color="#06110d" />
                 ) : (
-                  <Text style={s.primaryText}>CRIAR MINHA CONTA</Text>
+                  <Text style={s.primaryText}>{authReady?"CONTINUAR":"CRIAR MINHA CONTA"}</Text>
                 )}
               </Pressable>
             </View>
@@ -327,6 +466,19 @@ function AppContent() {
     );
 
   const firstName = data?.user.name.split(" ")[0] ?? "Cliente";
+  const menuTab = tab === "cashback" ? "conta" : tab;
+  const cashbackEntry=(location:string)=>(
+    <NeonCard testID={`referral-entry-${location}`} color="#ffd66b" radius={16} style={s.referralEntry}
+      accessibilityRole="button" accessibilityLabel="Indique e ganhe cashback. Ver indicações e compartilhar convite."
+      onPress={()=>setTab("cashback")}>
+      <CardLottie kind="entry" width={52} height={44} />
+      <View style={s.referralEntryBody}>
+        <Text style={s.referralEntryTitle}>Indique e ganhe cashback</Text>
+        <Text style={s.referralEntryText}>Seu convite, suas indicações e valores aprovados.</Text>
+      </View>
+      <Text style={s.referralEntryArrow}>↗</Text>
+    </NeonCard>
+  );
   const appointments = (data?.services.scheduling.appointments ?? []).filter(
     (a) => {
       const status = String(a.status ?? "")
@@ -346,9 +498,26 @@ function AppContent() {
       );
     },
   );
+  const inboxCard=announcements.length ? (
+    <NeonCard color="#ffd66b" style={[s.noticeCard,s.notice]}>
+      <Text style={s.noticeTag}>CENTRAL DE AVISOS</Text>
+      {announcements.slice(0,3).map(announcement=>{
+        const destination=announcementDestination(announcement.event_type);
+        return <Pressable key={announcement.id} testID={`inbox-announcement-${announcement.id}`} style={s.inboxItem}
+          disabled={!destination} accessibilityRole={destination?'button':undefined}
+          accessibilityState={{disabled:!destination}}
+          accessibilityLabel={destination?`${announcement.title}. ${destination.action}`:undefined}
+          onPress={destination?()=>setTab(destination.screen):undefined}>
+          <Text style={s.inboxTitle}>{announcement.title}</Text>
+          <Text style={s.inboxText}>{announcement.message}</Text>
+          {destination?<Text style={s.noticeAction}>{destination.action}</Text>:null}
+        </Pressable>;
+      })}
+    </NeonCard>
+  ):null;
   return (
     <SafeAreaView style={s.safe}>
-      {tab === "agenda" ? <HyperspaceBackground /> : tab === "turborama" ? <SpaceflightBackground /> : tab === "sorteios" ? <TrophyRainBackground /> : <MatrixBackground />}
+      {tab === "agenda" ? <HyperspaceBackground /> : tab === "turborama" ? <SpaceflightBackground /> : tab === "sorteios" ? <CoinRainBackground /> : <MatrixBackground />}
       <StatusBar style="light" />
       <PreviewRevision />
       <View style={s.header}>
@@ -366,6 +535,7 @@ function AppContent() {
       <MotionScrollView
         style={s.scroll}
         contentContainerStyle={s.content}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -378,6 +548,18 @@ function AppContent() {
         {tab === "inicio" && (
           <>
             <Text style={s.sectionTitle}>Sua central</Text>
+            {announcements.slice(0,1).map((announcement)=>{
+              const destination=announcementDestination(announcement.event_type);
+              return <NeonCard key={announcement.id} testID={`home-announcement-${announcement.id}`} color="#ffd66b" style={[s.noticeCard, s.notice]}
+                accessibilityLabel={destination?`${announcement.title}. ${destination.action}`:undefined}
+                onPress={destination?()=>setTab(destination.screen):undefined}>
+                <Text style={s.noticeTag}>{destination?.tag??'◉ AVISO'}</Text>
+                <Text style={s.noticeTitle}>{announcement.title}</Text>
+                <Text numberOfLines={2} style={s.noticeText}>{announcement.message}</Text>
+                {destination?<Text style={s.noticeAction}>{destination.action}</Text>:null}
+              </NeonCard>;
+            })}
+            {cashbackEntry("home")}
             <NeonCard style={[s.hero, s.green]} onPress={() => setTab("os")}>
               <View style={s.cardEmoji}><AnimatedIcon name="tools" size={54} /></View>
               <Text style={s.cardTag}>ASSISTÊNCIA TÉCNICA</Text>
@@ -404,7 +586,7 @@ function AppContent() {
               style={[s.hero, s.purple]}
               onPress={() => setTab("turborama")}
             >
-              <View style={s.cardEmoji}><AnimatedIcon name="rocket" size={54} /></View>
+              <View style={s.cardEmoji}><CardLottie kind="suite" width={70.2} height={70.2} /></View>
               <Text style={s.cardTag}>SUITE E LICENÇAS</Text>
               <Text style={s.cardTitle}>TurboRama</Text>
               <Text style={s.cardText}>
@@ -417,7 +599,7 @@ function AppContent() {
               style={[s.hero, s.raffle]}
               onPress={() => setTab("sorteios")}
             >
-              <View style={s.cardEmoji}><AnimatedIcon name="trophy" size={54} /></View>
+              <View style={s.raffleTrophy}><TrophyLottie size={86} /></View>
               <Text style={s.cardTag}>PRÊMIOS E CAMPANHAS</Text>
               <Text style={s.cardTitle}>Sorteios</Text>
               <Text style={s.cardText}>
@@ -455,34 +637,19 @@ function AppContent() {
             </Text>
             <AgendaBooking
               document={data?.user.document ?? ""}
-              onBooked={refresh}
+              onStore={setAgendaStore}
+              onBooked={async(appointment)=>{
+                // Display the committed receipt even if the next network refresh fails.
+                if(appointment?.agendamento_id)setData(current=>current?{
+                  ...current,services:{...current.services,scheduling:{appointments:[appointment,...current.services.scheduling.appointments.filter(item=>String(item.agendamento_id??item.id)!==String(appointment.agendamento_id))]}},
+                }:current);
+                if(!await refresh())throw new Error('Não foi possível atualizar os agendamentos.');
+              }}
             />
+            {appointments.length ? <Text style={s.sectionSub}>Toque em um agendamento para ver todos os detalhes.</Text> : null}
             {appointments.length ? (
               appointments.map((a, i) => (
-                <NeonCard color="#70d8ff"
-                  style={[s.item, s.agenda]}
-                  key={String(a.agendamento_id ?? a.id ?? i)}
-                >
-                  <View style={s.itemIcon}>
-                    <AnimatedIcon name="calendar" size={32} />
-                  </View>
-                  <View style={s.itemBody}>
-                    <Text style={s.itemTitle}>
-                      {String(a.servico_nome ?? "Atendimento")}
-                    </Text>
-                    <Text style={s.itemText}>
-                      {String(
-                        a.data_hora ?? `${a.data_d ?? ""} ${a.hora_i ?? ""}`,
-                      )}
-                    </Text>
-                    <Text style={s.itemText}>
-                      Profissional: {String(a.profissional_nome ?? "A definir")}
-                    </Text>
-                    <Text style={s.active}>
-                      ● {String(a.status ?? "PENDENTE").toUpperCase()}
-                    </Text>
-                  </View>
-                </NeonCard>
+                <AppointmentCard appointment={a} store={agendaStore} key={String(a.agendamento_id ?? a.id ?? i)} />
               ))
             ) : (
               <Empty text="Nenhum agendamento encontrado para seu WhatsApp." />
@@ -504,7 +671,17 @@ function AppContent() {
             <Text style={s.sectionSub}>
               Campanhas, participação e transmissões oficiais.
             </Text>
+            {inboxCard}
             <RaffleDetails data={data.services.raffles} user={data.user} />
+          </>
+        )}
+        {tab === "cashback" && (
+          <>
+            <Pressable testID="referral-back" accessibilityRole="button" accessibilityLabel="Voltar para o início"
+              onPress={()=>setTab("inicio")} style={s.referralBack}>
+              <Text style={s.referralBackText}>← VOLTAR PARA O INÍCIO</Text>
+            </Pressable>
+            <ReferralRewards refreshKey={data} />
           </>
         )}
         {tab === "conta" && (
@@ -518,7 +695,56 @@ function AppContent() {
                 {data?.user.phone || "WhatsApp não informado"}
               </Text>
             </NeonCard>
-            <Pressable style={s.logout} onPress={exit}>
+            {cashbackEntry("account")}
+            {inboxCard}
+            <NeonCard color="#ffd66b" radius={20} style={[s.notificationBox, s.raffleMessagingBox]}>
+              <View style={s.raffleMessagingCopy}>
+                <Text style={s.notificationTitle}>Avisos de sorteios</Text>
+                <Text style={s.notificationText}>Receba no WhatsApp cadastrado convites e lembretes das campanhas LZ Games. Esta autorização é opcional e pode ser cancelada aqui.</Text>
+                {appPresence?.linked?<Text style={s.notificationMeta}>● APP VINCULADO · {appPresence.devices} dispositivo(s)</Text>:<Text style={s.notificationMeta}>○ VINCULAÇÃO EM VALIDAÇÃO</Text>}
+              </View>
+              <Pressable
+                testID="raffle-messaging-toggle"
+                accessibilityRole="button"
+                accessibilityLabel={appPresence?.marketingOptIn ? "Desativar avisos de sorteios no WhatsApp" : "Ativar avisos de sorteios no WhatsApp"}
+                accessibilityState={{ disabled: loading || pushBusy || raffleMessagingBusy, busy: loading || pushBusy || raffleMessagingBusy }}
+                disabled={loading || pushBusy || raffleMessagingBusy}
+                hitSlop={6}
+                onPress={() => updateRaffleMessaging(!appPresence?.marketingOptIn)}
+                style={({ pressed }) => [
+                  s.raffleMessagingButton,
+                  appPresence?.marketingOptIn && s.notificationToggleOn,
+                  (loading || pushBusy || raffleMessagingBusy) && s.raffleMessagingButtonDisabled,
+                  pressed && s.raffleMessagingButtonPressed,
+                ]}
+              >
+                {(loading || pushBusy || raffleMessagingBusy) && <ActivityIndicator size="small" color={appPresence?.marketingOptIn ? "#221b08" : "#ffe394"} />}
+                <Text style={[s.raffleMessagingButtonText, appPresence?.marketingOptIn && s.notificationToggleTextOn]}>
+                  {raffleMessagingBusy ? "SALVANDO…" : (loading || pushBusy) ? "AGUARDE…" : appPresence?.marketingOptIn ? "DESATIVAR AVISOS" : "ATIVAR AVISOS NO WHATSAPP"}
+                </Text>
+              </Pressable>
+            </NeonCard>
+            <NeonCard color="#ffd66b" radius={20} style={s.notificationBox}>
+              <View style={s.notificationCopy}>
+                <Text style={s.notificationTitle}>Notificações no celular</Text>
+                <Text style={s.notificationText}>Receba avisos de novos sorteios, mesmo com o app fechado. Ao tocar, você abre Sorteios. A permissão é opcional e independente do WhatsApp.</Text>
+                <Text style={s.notificationMeta}>{!supportsRemotePush()?'DISPONÍVEL NO APK OFICIAL':appPresence?.push?.enabled?'● ATIVADAS NESTE CELULAR':'○ DESATIVADAS NESTE CELULAR'}</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={appPresence?.push?.enabled?'Desativar notificações push':'Ativar notificações push'} disabled={pushBusy||loading} onPress={updatePush} style={[s.notificationToggle,appPresence?.push?.enabled&&s.notificationToggleOn]}>
+                <Text style={[s.notificationToggleText,appPresence?.push?.enabled&&s.notificationToggleTextOn]}>{pushBusy?'AGUARDE':appPresence?.push?.enabled?'DESATIVAR':'ATIVAR'}</Text>
+              </Pressable>
+            </NeonCard>
+            <NeonCard color="#ffd66b" radius={20} style={s.notificationBox}>
+              <View style={s.notificationCopy}>
+                <Text style={s.notificationTitle}>OS e agendamentos</Text>
+                <Text style={s.notificationText}>Receba alterações de status das OS, lembretes de OS ativas há 3 dias sem alterações e avisos de agendamentos 6, 3 e 1 hora antes. Esta opção é independente dos sorteios e do WhatsApp.</Text>
+                <Text style={s.notificationMeta}>{!supportsRemotePush()?'DISPONÍVEL NO APK OFICIAL':appPresence?.push?.serviceEnabled?'● ATIVADOS NESTE CELULAR':'○ DESATIVADOS NESTE CELULAR'}</Text>
+              </View>
+              <Pressable testID="service-push-toggle" accessibilityRole="button" accessibilityLabel={appPresence?.push?.serviceEnabled?'Desativar avisos de OS e agendamentos':'Ativar avisos de OS e agendamentos'} accessibilityState={{disabled:pushBusy||loading,busy:pushBusy||loading}} disabled={pushBusy||loading} onPress={updateServicePush} style={[s.notificationToggle,appPresence?.push?.serviceEnabled&&s.notificationToggleOn]}>
+                <Text style={[s.notificationToggleText,appPresence?.push?.serviceEnabled&&s.notificationToggleTextOn]}>{pushBusy?'AGUARDE':appPresence?.push?.serviceEnabled?'DESATIVAR':'ATIVAR'}</Text>
+              </Pressable>
+            </NeonCard>
+            <Pressable style={s.logout} onPress={exit} disabled={loading||pushBusy}>
               <Text style={s.logoutText}>SAIR DA CONTA</Text>
             </Pressable>
             <View style={s.legalLinks}>
@@ -553,7 +779,7 @@ function AppContent() {
         {(
           ["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]
         ).map((t, i) => (
-          <NeonCard key={t} electric animate={tab === t} radius={12}
+          <NeonCard key={t} electric animate={menuTab === t} radius={12}
             decoration={!menuEffectsReady}
             onLayout={event => {
               const {x,y,width,height} = event.nativeEvent.layout;
@@ -563,19 +789,19 @@ function AppContent() {
                 const next = [...current]; next[i] = {x,y,width,height}; return next;
               });
             }}
-            color={tab === t ? "#72f5cf" : "#344e49"}
-            style={[s.navItem, tab === t && s.navSelected]}
-            accessibilityRole="tab" accessibilityState={{ selected: tab === t }}
+            color={menuTab === t ? "#72f5cf" : "#344e49"}
+            style={[s.navItem, menuTab === t && s.navSelected]}
+            accessibilityRole="tab" accessibilityState={{ selected: menuTab === t }}
             accessibilityLabel={["Início", "Ordens de serviço", "Agenda", "TurboRama", "Sorteios", "Minha conta"][i]}
             onPress={() => setTab(t)}>
-            <AnimatedIcon name={(["home", "tools", "calendar", "rocket", "trophy", "user"] as AnimatedIconName[])[i]!} size={28} active={tab === t} />
-            <Text style={[s.navText, tab === t && s.navActive]}>
+            <AnimatedIcon name={(["home", "tools", "calendar", "rocket", "trophy", "user"] as AnimatedIconName[])[i]!} size={28} active={menuTab === t} />
+            <Text style={[s.navText, menuTab === t && s.navActive]}>
               {["Início", "OS", "Agenda", "Turbo", "Sorteios", "Conta"][i]}
             </Text>
           </NeonCard>
         ))}
         <ElectricMenuEffects bounds={menuBounds}
-          selected={(["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]).indexOf(tab)}
+          selected={(["inicio", "os", "agenda", "turborama", "sorteios", "conta"] as Tab[]).indexOf(menuTab)}
           onReady={() => setMenuEffectsReady(true)} onFailure={() => setMenuEffectsReady(false)} />
       </View>
     </SafeAreaView>
@@ -720,6 +946,13 @@ const s = StyleSheet.create({
   onlineText: { fontSize: 10, fontWeight: "800", color: "#53f6a7" },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 30, gap: 10 },
+  referralEntry: { paddingHorizontal: 15, paddingVertical: 14, backgroundColor: "rgba(38,30,10,.92)", flexDirection: "row", alignItems: "center", gap: 12 },
+  referralEntryBody: { flex: 1 },
+  referralEntryTitle: { color: "#fff1b8", fontSize: 14, fontWeight: "900" },
+  referralEntryText: { color: "#bdb08b", fontSize: 11, lineHeight: 16, marginTop: 4 },
+  referralEntryArrow: { color: "#ffd66b", fontSize: 26 },
+  referralBack: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
+  referralBackText: { color: "#ffd66b", fontSize: 11, fontWeight: "800" },
   sectionTitle: {
     fontSize: 26,
     fontWeight: "900",
@@ -746,7 +979,17 @@ const s = StyleSheet.create({
   green: { backgroundColor: "#123c2d" },
   blue: { backgroundColor: "#123044" },
   purple: { backgroundColor: "#281e46" },
-  raffle: { backgroundColor: "#432052" },
+  raffle: { backgroundColor: "#432052", paddingRight: 110 },
+  raffleTrophy: { position: "absolute", right: 14, top: 0 },
+  noticeCard: { padding: 15, borderRadius: 17, overflow: "hidden" },
+  notice: { backgroundColor: "rgba(56,42,13,.96)", borderColor: "#8a6d22" },
+  noticeTag: { color: "#ffe394", fontSize: 8, fontWeight: "900", letterSpacing: 1.3 },
+  noticeTitle: { color: "#fff4cf", fontSize: 16, fontWeight: "900", marginTop: 6 },
+  noticeText: { color: "#d7c997", fontSize: 12, lineHeight: 17, marginTop: 4 },
+  noticeAction: { color: "#ffe394", fontSize: 9, fontWeight: "900", letterSpacing: .7, marginTop: 9 },
+  inboxItem: { borderTopWidth: 1, borderTopColor: "rgba(255,226,128,.18)", marginTop: 10, paddingTop: 10 },
+  inboxTitle: { color: "#fff4cf", fontSize: 14, fontWeight: "900" },
+  inboxText: { color: "#d7c997", fontSize: 12, lineHeight: 17, marginTop: 3 },
   cardEmoji: {
     position: "absolute",
     right: 16,
@@ -846,6 +1089,21 @@ const s = StyleSheet.create({
     marginBottom: 9,
   },
   profileName: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  notificationBox: { backgroundColor: "rgba(44,34,10,.96)", borderColor: "#80651e", padding: 16, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 12 },
+  notificationCopy: { flex: 1 },
+  notificationTitle: { color: "#fff2bf", fontSize: 16, fontWeight: "900" },
+  notificationText: { color: "#d6c998", fontSize: 11, lineHeight: 16, marginTop: 4 },
+  notificationMeta: { color: "#ffe394", fontSize: 8, fontWeight: "900", letterSpacing: .7, marginTop: 8 },
+  notificationToggle: { minWidth: 76, height: 36, borderRadius: 10, borderWidth: 1, borderColor: "#8e7528", alignItems: "center", justifyContent: "center", backgroundColor: "#2a220d" },
+  notificationToggleOn: { borderColor: "#fff0a4", backgroundColor: "#f9d35d" },
+  notificationToggleText: { color: "#ffe394", fontSize: 9, fontWeight: "900", letterSpacing: .6 },
+  notificationToggleTextOn: { color: "#221b08" },
+  raffleMessagingBox: { flexDirection: "column", alignItems: "stretch" },
+  raffleMessagingCopy: { flexShrink: 1 },
+  raffleMessagingButton: { alignSelf: "stretch", minHeight: 52, paddingVertical: 14, paddingHorizontal: 16, flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: "#c8a749", backgroundColor: "#362b10" },
+  raffleMessagingButtonText: { color: "#ffe394", fontSize: 13, fontWeight: "900", letterSpacing: .3, textAlign: "center", flexShrink: 1 },
+  raffleMessagingButtonPressed: { opacity: .72 },
+  raffleMessagingButtonDisabled: { opacity: .65 },
   logout: {
     height: 52,
     borderRadius: 14,
@@ -870,6 +1128,9 @@ const s = StyleSheet.create({
   deleteButtonText: { color: "#ff8a83", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   nav: {
     height: 94,
+    // Android devices with three-button navigation can draw controls over the app edge.
+    // Reserve a fixed, visible buffer so the lower menu stays touchable above them.
+    marginBottom: 30,
     borderTopWidth: 1,
     borderTopColor: "#172921",
     backgroundColor: "rgba(8,20,15,.97)",

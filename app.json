@@ -2,7 +2,7 @@
   "expo": {
     "name": "LZ-GAMES",
     "slug": "lz-games",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Aplicativo oficial da LZ Games para clientes acompanharem ordens de serviço, agendamentos e serviços TurboRama.",
     "icon": "./assets/icon.png",
     "scheme": "lzgames",
@@ -10,7 +10,7 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "br.com.lzgames.app",
-      "versionCode": 17,
+      "versionCode": 26,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -24,6 +24,7 @@
     },
     "plugins": [
       "expo-secure-store",
+      ["expo-notifications", {"color":"#FFD66B","defaultChannel":"sorteios"}],
       [
         "expo-splash-screen",
         {

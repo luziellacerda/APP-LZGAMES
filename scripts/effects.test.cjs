@@ -218,7 +218,7 @@ test("spacefield pauses when hidden, resumes once and redraws correctly on rotat
   assert.equal(s.queue.size, 0);
 });
 
-test("raffle Matrix draws only local trophy cups and preserves the original letter screen", () => {
+test("legacy trophy renderer remains available while only raffle switches to coin Lottie", () => {
   assert(!trophyRainHtml.includes("fillText"));
   assert(!trophyRainHtml.includes("http"));
   assert(trophyRainHtml.includes("trophySprite('#efb93b')"));
@@ -230,7 +230,7 @@ test("raffle Matrix draws only local trophy cups and preserves the original lett
   const app = fs.readFileSync(path.join(__dirname, "../App.tsx"), "utf8");
   assert(
     app.includes(
-      'tab === "sorteios" ? <TrophyRainBackground /> : <MatrixBackground />',
+      'tab === "sorteios" ? <CoinRainBackground /> : <MatrixBackground />',
     ),
   );
   const matrix = fs.readFileSync(

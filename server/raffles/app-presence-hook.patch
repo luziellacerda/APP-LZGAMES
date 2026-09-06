@@ -1,0 +1,17 @@
+--- a/lib/app-messaging.php
++++ b/lib/app-messaging.php
+@@ -1,5 +1,6 @@
+ <?php
+ declare(strict_types=1);
++require_once __DIR__.'/app-referral-first-use.php';
+ 
+ function app_schema(PDO $db): void
+ {
+@@ -132,6 +133,7 @@
+         }
+         app_push_register($db,$id,$body);
+         app_service_invalidate_monitors($db);
++        app_referral_capture($db,$customer,$platform);
+         $db->commit();
+         return $hash;
+     } catch (Throwable $e) {

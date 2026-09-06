@@ -1,0 +1,264 @@
+--- a/routes/referrals.js
++++ b/routes/referrals.js
+@@ -6,10 +6,10 @@
+ const router = express.Router();
+ 
+ const db = require("../db");
+-const { normalizePhone } = require("../lib/phoneUtils");
+ const auth = require("../middleware/referralAuth");
+ const { confirmLegacy } = require("../lib/serviceReferral");
+-const { appReferralSummary, insertTimedAppReferral } = require("../lib/appReferral");
++const { appReferralSummary } = require("../lib/appReferral");
++const guard = require("../lib/referralGuard");
+ const { REFERRAL_SECRET, SERVICE_SECRET } = require("../config/jwtConfig");
+ const { referralShareLink, publicAppInviteInfo } = require("../lib/appInvite");
+ // -----------------------------------------------------------------------------
+@@ -21,7 +21,7 @@
+   "https://app.lzgames.com.br/login";
+ 
+ // Public, read-only download/invitation information. Never binds or grants credit.
+-router.get("/app/invite-info", publicAppInviteInfo(REFERRAL_SECRET));
++router.get("/app/invite-info", publicAppInviteInfo(REFERRAL_SECRET, db.dbCashback || db.db4));
+ 
+ const REFERRAL_TIERS = Object.freeze([
+   { id: "starter", threshold: 0, label: "Iniciante", percent: 0, description: "Comece a indicar para gerar cashback." },
+@@ -63,76 +63,7 @@
+ // -----------------------------------------------------------------------------
+ // Helpers de código de indicação (base64-url sobre { id })
+ // -----------------------------------------------------------------------------
+-function base64UrlEncode(buffer) {
+-  return Buffer.from(buffer)
+-    .toString("base64")
+-    .replace(/\+/g, "-")
+-    .replace(/\//g, "_")
+-    .replace(/=+$/g, "");
+-}
+-
+-function base64UrlDecode(str) {
+-  const pad = 4 - (str.length % 4 || 4);
+-  const normalized = str.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(pad);
+-  return Buffer.from(normalized, "base64");
+-}
+-
+-function gerarCodigoRef(indicadorId) {
+-  const payload = JSON.stringify({
+-    id: Number(indicadorId),
+-  });
+-  const encoded = base64UrlEncode(payload);
+-  const signature = base64UrlEncode(
+-    crypto
+-      .createHmac("sha256", REFERRAL_SECRET)
+-      .update(encoded)
+-      .digest()
+-      .subarray(0, 16)
+-  );
+-  return `LZ${encoded}.${signature}`;
+-}
+-
+-function gerarCodigoRegistro(indicadorId, indicadoId) {
+-  const payload = JSON.stringify({
+-    i: Number(indicadorId),
+-    r: Number(indicadoId),
+-  });
+-  return "LZR" + base64UrlEncode(payload);
+-}
+-
+-function parseCodigoRef(codigoRef) {
+-  try {
+-    if (!codigoRef || typeof codigoRef !== "string") return null;
+-    const limpo = codigoRef.trim();
+-    if (!limpo.startsWith("LZ")) return null;
+-    const [base, signature] = limpo.substring(2).split(".");
+-    if (!base || !signature) return null;
+-    const expected = base64UrlEncode(
+-      crypto
+-        .createHmac("sha256", REFERRAL_SECRET)
+-        .update(base)
+-        .digest()
+-        .subarray(0, 16)
+-    );
+-    const receivedBuffer = Buffer.from(signature);
+-    const expectedBuffer = Buffer.from(expected);
+-    if (
+-      receivedBuffer.length !== expectedBuffer.length ||
+-      !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
+-    ) {
+-      return null;
+-    }
+-    const jsonStr = base64UrlDecode(base).toString("utf8");
+-    const parsed = JSON.parse(jsonStr);
+-    if (!parsed || !parsed.id) return null;
+-    return {
+-      indicadorId: Number(parsed.id),
+-    };
+-  } catch (err) {
+-    console.error("[referrals] erro ao parsear codigo_ref:", err);
+-    return null;
+-  }
+-}
++// Invitation parsing, issuance and permanent identity reservations live in referralGuard.
+ 
+ // -----------------------------------------------------------------------------
+ // GET /api/me/referrals/summary
+@@ -282,6 +213,8 @@
+ // Handler para geração de link de indicação (usado em 2 rotas)
+ // -----------------------------------------------------------------------------
+ async function handleGenerateReferralLink(req, res) {
++  const dbs = ensureDbOr503(res);
++  if (!dbs) return;
+   try {
+     if (!req.user) {
+       return res.status(401).json({
+@@ -290,20 +223,9 @@
+       });
+     }
+ 
+-    const indicadorId = req.user.sub;
+-    const indicadorNome = req.user.nome || "Cliente LZGames";
+-
+-    if (!indicadorId) {
+-      return res.status(400).json({
+-        ok: false,
+-        error: "Usuário não identificado no token.",
+-      });
+-    }
+-
+-    let codigoRef = req.user.codigo_ref;
+-    if (!codigoRef) {
+-      codigoRef = gerarCodigoRef(indicadorId);
+-    }
++    await guard.rateLimit(dbs.cashbackDb,'issue',req.user.sub,req.ip);
++    const {code:codigoRef,person}=await guard.issueInvite(dbs.mainDb,dbs.cashbackDb,req.user,REFERRAL_SECRET);
++    const indicadorId=person.id,indicadorNome=person.name;
+ 
+     const link = referralShareLink(req, codigoRef, REFERRAL_BASE_URL);
+ 
+@@ -317,13 +239,7 @@
+       },
+     });
+   } catch (err) {
+-    console.error("[referrals] erro em POST /me/referrals/link:", err, {
+-      user: req.user ? { sub: req.user.sub, nome: req.user.nome } : null,
+-    });
+-    return res.status(500).json({
+-      ok: false,
+-      error: "Erro interno ao gerar link de indicação.",
+-    });
++    return guard.errorResponse(err,res);
+   }
+ }
+ 
+@@ -342,108 +258,12 @@
+   if (!dbs) return;
+   const { cashbackDb, mainDb } = dbs;
+   try {
+-    const { codigo_ref } = req.body || {};
+-    if (!codigo_ref) {
+-      return res
+-        .status(400)
+-        .json({ ok: false, error: "Código de indicação não informado." });
+-    }
+-
+-    const parsed = parseCodigoRef(codigo_ref);
+-    if (!parsed || !parsed.indicadorId) {
+-      return res
+-        .status(400)
+-        .json({ ok: false, error: "Código de indicação inválido." });
+-    }
+-
+-    const indicadorId = parsed.indicadorId;
+-
+-    const indicadoId = req.user.sub || null;
+-    const indicadoTelefone =
+-      req.user.telefone_normalizado ||
+-      normalizePhone(req.user.telefone || "");
+-
+-    if (!indicadoId) {
+-      return res.status(400).json({
+-        ok: false,
+-        error: "Cliente indicado não identificado no token.",
+-      });
+-    }
+-
+-    if (Number(indicadorId) === Number(indicadoId)) {
+-      return res.status(409).json({
+-        ok: false,
+-        code: "SELF_REFERRAL_NOT_ALLOWED",
+-        error: "Não é permitido indicar a própria conta.",
+-      });
+-    }
+-
+-    const [indicadorRows] = await mainDb.query(
+-      "SELECT id FROM clientes WHERE id = ? LIMIT 1",
+-      [indicadorId]
+-    );
+-    if (!indicadorRows?.length) {
+-      return res.status(400).json({
+-        ok: false,
+-        code: "REFERRER_NOT_FOUND",
+-        error: "Código de indicação não corresponde a um cliente válido.",
+-      });
+-    }
+-
+-    const [existingRows] = await cashbackDb.query(
+-      `SELECT id, codigo_ref, status
+-         FROM indicacoes
+-        WHERE indicador_cliente_id = ?
+-          AND indicado_cliente_id = ?
+-        ORDER BY id DESC
+-        LIMIT 1`,
+-      [indicadorId, indicadoId]
+-    );
+-    if (existingRows?.length) {
+-      const existing = existingRows[0];
+-      return res.json({
+-        ok: true,
+-        already_registered: true,
+-        data: {
+-          id: existing.id,
+-          indicador_cliente_id: indicadorId,
+-          indicado_cliente_id: indicadoId,
+-          codigo_ref: existing.codigo_ref,
+-          status: existing.status,
+-        },
+-      });
+-    }
+-
+-    const codigoRegistro = gerarCodigoRegistro(indicadorId, indicadoId);
+-
+-    const result = await insertTimedAppReferral(cashbackDb,
+-      [
+-        indicadorId,
+-        indicadoId,
+-        req.user.nome || null,
+-        indicadoTelefone || null,
+-        req.user.cpf || null,
+-        codigoRegistro,
+-        "link",
+-      ]
+-    );
+-
+-    return res.json({
+-      ok: true,
+-      data: {
+-        id: result.insertId,
+-        indicador_cliente_id: indicadorId,
+-        indicado_cliente_id: indicadoId,
+-        codigo_ref: codigoRegistro,
+-        status: "pendente",
+-      },
+-    });
++    await guard.rateLimit(cashbackDb,'accept',req.user.sub,req.ip);
++    const result=await guard.acceptInvite(mainDb,cashbackDb,req.user,req.body?.codigo_ref,REFERRAL_SECRET);
++    res.set('Cache-Control','no-store');
++    return res.json(result);
+   } catch (err) {
+-    console.error("[referrals] não foi possível registrar indicação; dados privados omitidos.");
+-    return res.status(500).json({
+-      ok: false,
+-      error: "Erro interno ao registrar indicação.",
+-    });
++    return guard.errorResponse(err,res);
+   }
+ });
+ 

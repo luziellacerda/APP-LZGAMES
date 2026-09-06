@@ -1,0 +1,211 @@
+diff --git a/painel/paginas/os.php b/painel/paginas/os.php
+index a6d2764..6c54e2f 100644
+--- a/painel/paginas/os.php
++++ b/painel/paginas/os.php
+@@ -1,5 +1,7 @@
+ <?php
+ $pag = 'os';
++if (session_status() !== PHP_SESSION_ACTIVE) session_start();
++if (empty($_SESSION['app_credit_csrf'])) $_SESSION['app_credit_csrf'] = bin2hex(random_bytes(32));
+ 
+ // verificar permissão
+ if (@$os == 'ocultar') {
+@@ -1097,6 +1099,7 @@ body.lz-gold-skin #modalQuickItens + .modal-backdrop{
+       </div>
+ 
+       <form method="post" id="form_orcamento">
++        <input type="hidden" name="app_credit_csrf" id="app-credit-csrf" value="<?php echo htmlspecialchars($_SESSION['app_credit_csrf'],ENT_QUOTES,'UTF-8'); ?>">
+         <div class="modal-body">
+ 
+           <div class="g-section mb-3">
+@@ -1232,7 +1235,7 @@ body.lz-gold-skin #modalQuickItens + .modal-backdrop{
+               </div>
+ 
+               <div class="col-md-2 col-6">
+-                <label>SubTotal</label>
++                <label>Total a pagar</label>
+                 <input class="form-control" type="text" name="subtotal" id="subtotal" readonly>
+               </div>
+ 
+@@ -1246,6 +1249,21 @@ body.lz-gold-skin #modalQuickItens + .modal-backdrop{
+                 <input class="form-control" type="date" name="data_pagar" id="data_pagar" required>
+               </div>
+             </div>
++            <div id="app-credit-panel" class="mt-3 p-2 border rounded" style="font-size:13px;">
++              <div class="d-flex flex-wrap align-items-center gap-2">
++                <strong>Crédito do app · serviços</strong>
++                <button type="button" class="btn btn-sm btn-outline-secondary" id="app-credit-refresh">Consultar saldo da OS salva</button>
++                <span id="app-credit-balance"></span>
++              </div>
++              <div id="app-credit-actions" class="mt-2 d-flex flex-wrap align-items-center gap-2">
++                <label class="mb-0" for="app-credit-amount">Usar R$</label>
++                <input id="app-credit-amount" type="text" inputmode="decimal" autocomplete="off" maxlength="11" aria-label="Valor do crédito para serviços" class="form-control form-control-sm" style="max-width:110px;" placeholder="0,00">
++                <button type="button" class="btn btn-sm btn-primary" id="app-credit-apply" disabled>Aplicar na nota</button>
++                <input id="app-credit-reason" type="text" maxlength="160" class="form-control form-control-sm" style="max-width:280px;" placeholder="Motivo do estorno" aria-label="Motivo do estorno" hidden>
++                <button type="button" class="btn btn-sm btn-outline-secondary" id="app-credit-undo" hidden>Estornar crédito</button>
++              </div>
++              <div id="app-credit-message" class="mt-1" role="status" aria-live="polite">Salve a OS antes de consultar. O saldo pertence ao cliente da nota, não pode ser sacado e não abate produtos ou frete.</div>
++            </div>
+           </div>
+ 
+           <div class="g-section mb-3">
+@@ -2969,3 +2987,4 @@ body.lz-gold-skin #modalQuickItens + .modal-backdrop{
+     });
+   }
+ </script>
++<script src="js/app-credit.js?v=<?php echo filemtime(dirname(__DIR__).'/js/app-credit.js'); ?>"></script>
+
+diff --git a/painel/paginas/os/salvar.php b/painel/paginas/os/salvar.php
+index 89f2729..8145e1b 100644
+--- a/painel/paginas/os/salvar.php
++++ b/painel/paginas/os/salvar.php
+@@ -6,6 +6,7 @@ header('Content-Type: text/plain; charset=utf-8');
+ $tabela = 'os';
+ require_once("../../../conexao.php");
+ @session_start();
++require_once dirname(__DIR__,2).'/app-credit.php';
+ 
+ try {
+     $id_usuario = @$_SESSION['id'];
+@@ -86,11 +87,22 @@ try {
+ 
+     $valor_entrada_os = 0;
+     $pago_os = '';
++    $app_credit = null;
++    $original_os = null;
+     if ($id > 0) {
+-        $query2 = $pdo->prepare("SELECT val_entrada, pago, status FROM os WHERE id = :id LIMIT 1");
++        $pdo->beginTransaction();
++        $query2 = $pdo->prepare("SELECT * FROM os WHERE id = :id LIMIT 1 FOR UPDATE");
+         $query2->execute([':id' => $id]);
+         $res2 = $query2->fetch(PDO::FETCH_ASSOC);
+         if ($res2) {
++            $original_os = $res2;
++            $app_credit = lz_app_credit_active($pdo, $id);
++            if ($app_credit) {
++                lz_app_credit_csrf($_SESSION, $_SERVER, $_POST['app_credit_csrf'] ?? null);
++                lz_app_credit_authorize($pdo, $_SESSION, $_SERVER);
++                if ($cliente !== (int)$original_os['cliente']) throw new LzAppCreditError('Estorne o crédito antes de trocar o cliente da OS.');
++                if ($original_os['pago'] === 'Sim' && $pago !== 'Sim') throw new LzAppCreditError('Uma OS com crédito já pago exige conferência financeira.');
++            }
+             $valor_entrada_os = ($res2['val_entrada'] === '' || $res2['val_entrada'] === null) ? 0 : $res2['val_entrada'];
+             $pago_os = @$res2['pago'];
+             $status = @$res2['status'];
+@@ -145,6 +157,21 @@ try {
+         $total_com_desconto = $total_final - (float)$desconto + (float)$frete - (float)$val_entrada;
+     }
+ 
++    // Credit-bearing notes keep their audited financial snapshot. Technical fields and payment
++    // remain editable, but posted/preview totals must never undo or double-subtract the credit.
++    if ($app_credit) {
++        $total_final = $original_os['valor'];
++        $total_com_desconto = $subtotal = $original_os['subtotal'];
++        $total_produtos = $original_os['total_produtos'];
++        $total_servicos = $original_os['total_servicos'];
++        $desconto = $original_os['desconto'];
++        $tipo_desconto = $original_os['tipo_desconto'];
++        $frete = $original_os['frete'];
++        $mao_obra = $original_os['mao_obra'];
++        $val_entrada = $original_os['val_entrada'];
++        $vall = $original_os['vall'];
++    }
++
+     if ($id <= 0) {
+         $query = $pdo->prepare("INSERT INTO $tabela SET
+             data = curDate(),
+@@ -336,13 +363,16 @@ try {
+             ]);
+         }
+     } catch (Throwable $eFinanceiro) {
++        if ($app_credit) throw new LzAppCreditError('Não foi possível confirmar o recebimento desta OS. Nenhuma alteração foi salva.');
+         error_log('LZ OS FINANCEIRO ERRO id='.$id_orcamento.' erro='.$eFinanceiro->getMessage());
+     }
+ 
++    if ($pdo->inTransaction()) $pdo->commit();
+     echo 'Salvo com Sucesso-'.$id_orcamento;
+     exit();
+ 
+ } catch (Throwable $e) {
++    if ($pdo->inTransaction()) $pdo->rollBack();
+     error_log('LZ OS SALVAR ERRO: '.$e->getMessage());
+     http_response_code(500);
+     echo 'ERRO 500 (OS salvar): '.$e->getMessage();
+
+diff --git a/painel/paginas/os/totalizar.php b/painel/paginas/os/totalizar.php
+index 13c8e6c..3034b34 100644
+--- a/painel/paginas/os/totalizar.php
++++ b/painel/paginas/os/totalizar.php
+@@ -22,7 +22,9 @@ $data_atual = date('Y-m-d');
+ 
+ @session_start();
+ $id_usuario = @$_SESSION['id'];
++require_once dirname(__DIR__,2).'/app-credit.php';
+ 
++try {
+ $desconto = @$_POST['desconto'];
+ $tipo_desconto = @$_POST['tipo_desconto'];
+ $frete = @$_POST['frete'];
+@@ -31,6 +33,20 @@ $mao_obra = @$_POST['mao_obra'];
+ $val_entrada = @$_POST['val_entrada'];
+ $vall = @$_POST['vall'];
+ 
++if ($id !== '' && $id !== null) {
++    $id = lz_app_credit_id($id);
++    lz_referral_authorize($pdo,$_SESSION,$_SERVER,'office',$id);
++    $pdo->beginTransaction();
++    $savedQuery=$pdo->prepare('SELECT valor,subtotal FROM os WHERE id=? FOR UPDATE');
++    $savedQuery->execute([$id]);$saved=$savedQuery->fetch(PDO::FETCH_ASSOC);
++    if (!$saved) throw new LzAppCreditError('OS não encontrada.');
++    if (lz_app_credit_active($pdo,$id)) {
++        $pdo->commit();
++        echo number_format((float)$saved['valor'],2,',','.').'-'.number_format((float)$saved['subtotal'],2,',','.');
++        exit;
++    }
++}
++
+ if($desconto == "") $desconto = 0;
+ if($frete == "") $frete = 0;
+ if($val_entrada == "") $val_entrada = 0;
+@@ -67,9 +83,14 @@ if($tipo_desconto == "%"){
+ $total_finalF = number_format($total_final, 2, ',', '.');
+ $total_com_descontoF = number_format($total_com_desconto, 2, ',', '.');
+ 
+-echo $total_finalF.'-'.$total_com_descontoF;
+-
+ if($id != ""){
+ 	$pdo->query("UPDATE os SET valor = '$total_final', subtotal = '$total_com_desconto', total_produtos = '$total_produtos', total_servicos = '$total_servicos' WHERE id = '$id'");
+ }
++if ($pdo->inTransaction()) $pdo->commit();
++echo $total_finalF.'-'.$total_com_descontoF;
++} catch (Throwable $error) {
++    if ($pdo->inTransaction()) $pdo->rollBack();
++    http_response_code(409);
++    echo 'Não foi possível recalcular esta OS. Consulte o crédito aplicado ou atualize o painel.';
++}
+ ?>
+
+diff --git a/painel/rel/os.php b/painel/rel/os.php
+index d4a93eb..8d78ecc 100644
+--- a/painel/rel/os.php
++++ b/painel/rel/os.php
+@@ -24,6 +24,8 @@ $valor = $res[0]['valor'];
+ $desconto = $res[0]['desconto'];
+ $tipo_desconto = $res[0]['tipo_desconto'];
+ $subtotal = $res[0]['subtotal'];
++require_once dirname(__DIR__).'/app-credit.php';
++$appCreditPdf = lz_app_credit_active($pdo,(int)$id);
+ $obs = $res[0]['obs'];
+ $status = $res[0]['status'];
+ $total_produtos = $res[0]['total_produtos'];
+@@ -625,6 +627,11 @@ try {
+ 				</div>
+ 			<?php } ?>
+ 
++			<?php if($appCreditPdf){ ?>
++                <div align="right" style="margin-top:4px;font-size:10px;">
++                    <span><b>CRÉDITO DO APP (SERVIÇOS):</b> − R$ <?php echo number_format((int)$appCreditPdf['amount_cents']/100,2,',','.'); ?></span>
++                </div>
++            <?php } ?>
+ 			<?php if($frete > 0){ ?>
+ 				<div align="right" style="margin-top: 4px; font-size:10px;">
+ 					<span><b>FRETE: </b>R$ <?php echo $freteF ?></span>

@@ -1,0 +1,29 @@
+--- a/routes/referrals.js
++++ b/routes/referrals.js
+@@ -11,6 +11,7 @@
+ const { confirmLegacy } = require("../lib/serviceReferral");
+ const { appReferralSummary, insertTimedAppReferral } = require("../lib/appReferral");
+ const { REFERRAL_SECRET, SERVICE_SECRET } = require("../config/jwtConfig");
++const { referralShareLink, publicAppInviteInfo } = require("../lib/appInvite");
+ // -----------------------------------------------------------------------------
+ // Configurações
+ // -----------------------------------------------------------------------------
+@@ -19,6 +20,9 @@
+   process.env.REFERRAL_BASE_URL ||
+   "https://app.lzgames.com.br/login";
+ 
++// Public, read-only download/invitation information. Never binds or grants credit.
++router.get("/app/invite-info", publicAppInviteInfo(REFERRAL_SECRET));
++
+ const REFERRAL_TIERS = Object.freeze([
+   { id: "starter", threshold: 0, label: "Iniciante", percent: 0, description: "Comece a indicar para gerar cashback." },
+   { id: "tier5", threshold: 5, label: "Influencer 5%", percent: 5, description: "A partir de 5 indicações válidas, você recebe 5% de cashback." },
+@@ -301,7 +305,7 @@
+       codigoRef = gerarCodigoRef(indicadorId);
+     }
+ 
+-    const link = `${REFERRAL_BASE_URL}?ref=${encodeURIComponent(codigoRef)}`;
++    const link = referralShareLink(req, codigoRef, REFERRAL_BASE_URL);
+ 
+     return res.json({
+       ok: true,

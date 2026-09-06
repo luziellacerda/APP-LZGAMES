@@ -1,0 +1,64 @@
+--- a/index.php
++++ b/index.php
+@@ -2,6 +2,7 @@
+ // index.php — Agenda + Enriquecimento + Modal + Cupom + Sorteio + UI 3D + máscaras + CONFIRMS (v4.1-patch-e164)
+ declare(strict_types=1);
+ require_once __DIR__.'/booking-customer.php';
++require_once __DIR__.'/booking-confirmation.php';
+ 
+ /* ===== DEBUG ===== */
+ ini_set('display_errors','0'); ini_set('display_startup_errors','0');
+@@ -174,7 +175,7 @@
+         $db=pdo_agenda();
+         try{$q=$db->query("SELECT id,nome FROM setores ORDER BY id");$setores=$q->fetchAll();}catch(Throwable $e){$setores=[['id'=>1,'nome'=>'Informática'],['id'=>2,'nome'=>'Video Games']];}
+         $st=$db->query("SELECT id,setor_id,nome,duracao_min,preco_brl FROM servicos ORDER BY setor_id,nome"); $serv=$st->fetchAll();
+-        echo json_encode(['setores'=>$setores,'servicos'=>$serv]); break;
++        echo json_encode(['setores'=>$setores,'servicos'=>$serv,'loja'=>['nome'=>LOJA_NOME,'endereco'=>LOJA_ENDERECO]]); break;
+       }
+       case 'slots': {
+         $data=$_GET['data']??(new DateTime('today'))->format('Y-m-d');
+@@ -283,34 +284,17 @@
+         }finally{
+           try{ $rel=$db->prepare('SELECT RELEASE_LOCK(:k)'); $rel->execute([':k'=>$lockName]); }catch(Throwable $ignored){}
+         }
+-        $srv=pdo_agenda()->prepare("SELECT nome FROM servicos WHERE id=:id"); $srv->execute([':id'=>$servico_id]); $srvNome=$srv->fetchColumn()?:("#$servico_id");
++        // Use the values validated in the committed reservation; no second DB
++        // lookup can fail here and hide a booking that already exists.
++        $agendamento=['agendamento_id'=>$aid,'protocolo'=>$protocolo,'data_hora'=>$dtStr,
++          'data_d'=>$data,'hora_i'=>$ini,'hora_f'=>$fim,'status'=>$statusIni,'atendimento'=>'loja',
++          'servico_nome'=>(string)$servico['nome'],'profissional_nome'=>$profNome,
++          'cliente_nome'=>$nome,'telefone'=>$telefone,'loja'=>['nome'=>LOJA_NOME,'endereco'=>LOJA_ENDERECO]];
++        $notificacao=agenda_notify_booking($agendamento,
++          static fn(string $to,string $message):array=>msg_texto($to,$message,null),
++          static fn(array $record):int=>salvar_mensagem($db,$record));
+ 
+-        // Mensagem de confirmação (texto fornecido)
+-        $msg = "✅ Horário Confirmado\n\n".
+-               "━━━━━━━━━━━━━━━━━━━━━━━━\n".
+-               "🎮 - Loja: ".LOJA_NOME."\n".
+-               "🕹️ - Profissional: {$profNome}\n".
+-               "━━━━━━━━━━━━━━━━━━━━━━━━\n".
+-               "🛠️ - Serviço: {$srvNome}\n".
+-               "📅 - Data: ".(new DateTime($data))->format('d/m/Y')."\n".
+-               "⏰ - Horário: {$ini} – {$fim}\n".
+-               "━━━━━━━━━━━━━━━━━━━━━━━━\n".
+-               "🧍 - Cliente: {$nome}\n".
+-               "📱 - Contato: ".preg_replace('/(\+55)?(\d{2})(\d{5})(\d{4})/','($2) $3-$4', preg_replace('/\D+/','',$telefone))."\n\n".
+-               "📍 - Endereço: ".LOJA_ENDERECO."\n".
+-               "━━━━━━━━━━━━━━━━━━━━━━━━\n\n".
+-               "🔔 - Lembrete: você receberá um aviso 1 dia antes, responda CONFIRMO até as 17h da véspera. Atrasos acima de 10 min podem gerar reagendamento.\n\n".
+-               "🙏 - Obrigado pela preferência!";
+-
+-        $notificacao='falha';
+-        try{
+-          $resp=msg_texto($telefone,$msg,null);
+-          $notificacao=$resp['http']===200?'enviado':'falha';
+-          $apiId=$resp['body']['data']['id'] ?? ($resp['body']['id'] ?? null);
+-          salvar_mensagem(pdo_agenda(),['agendamento_id'=>$aid,'to_numero'=>$telefone,'message'=>$msg,'tipo'=>'texto','status_envio'=>$notificacao,'api_message_id'=>$apiId]);
+-        }catch(Throwable $e){ error_log('notificacao agendamento '.$aid.': '.$e->getMessage()); }
+-
+-        echo json_encode(['ok'=>true,'agendamento_id'=>$aid,'protocolo'=>$protocolo,'cancel_code'=>$cancel,'cupom_codigo'=>$cupom['codigo'],'cupom_percentual'=>$cupom['percentual'],'notificacao'=>$notificacao]); 
++        echo json_encode(['ok'=>true,'agendamento_id'=>$aid,'protocolo'=>$protocolo,'cancel_code'=>$cancel,'cupom_codigo'=>$cupom['codigo'],'cupom_percentual'=>$cupom['percentual'],'notificacao'=>$notificacao,'agendamento'=>$agendamento]);
+         break;
+       }
+       case 'cancelarCliente': {

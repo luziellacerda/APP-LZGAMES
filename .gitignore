@@ -8,3 +8,10 @@ play-store/*.apk
 .env
 .env.*
 !.env.example
+google-services.json
+GoogleService-Info.plist
+*-firebase-adminsdk-*.json
+credentials.json
+*-service-account*.json
+*serviceaccount*.json
+firebase-debug*.log

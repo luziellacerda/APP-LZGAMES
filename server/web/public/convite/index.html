@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070c11">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <title>Você recebeu um convite · LZ-GAMES</title>
+  <meta name="description" content="Conheça o app LZ-GAMES. Baixe para Android e use o convite recebido antes do primeiro acesso para vincular sua indicação.">
+  <meta property="og:title" content="Um convite para o app LZ-GAMES">
+  <meta property="og:description" content="Suas OS, agenda, TurboRama e sorteios no celular. Abra o convite para baixar o app e saber como usar seu código.">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="/convite/invite-v1.css">
+  <script src="/convite/invite-v1.js" defer></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="topbar wrap">
+    <div class="wordmark">LZ<span>-</span>GAMES <small>APP PARA CLIENTES</small></div>
+    <span class="platform"><span aria-hidden="true">●</span> ANDROID</span>
+  </header>
+  <main class="wrap layout" id="main">
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow">CONECTADO À SUA EXPERIÊNCIA</p>
+      <h1 id="title">Seu universo <br>LZ-GAMES.<br><span>No seu celular.</span></h1>
+      <p class="lead">Acompanhe sua assistência, agende um horário e fique por dentro das novidades. Tudo em um só app.</p>
+      <div class="features" aria-label="Recursos do aplicativo">
+        <div><span aria-hidden="true">⌁</span><strong>Minhas OS</strong><small>Dados e andamento</small></div>
+        <div><span aria-hidden="true">▦</span><strong>Agenda</strong><small>Seu próximo horário</small></div>
+        <div><span aria-hidden="true">↗</span><strong>TurboRama</strong><small>Acessos e pacotes</small></div>
+        <div><span aria-hidden="true">✦</span><strong>Sorteios</strong><small>Novidades e avisos</small></div>
+      </div>
+      <p class="micro">Download direto e oficial da LZ-GAMES. Não é necessário entrar no site para baixar.</p>
+    </section>
+
+    <section class="invite-card" aria-labelledby="invite-title">
+      <div class="card-heading"><span class="tag">CONVITE PARA O APP</span><span class="card-spark" aria-hidden="true">✦</span></div>
+      <h2 id="invite-title">Você está convidado.</h2>
+      <p id="page-status" role="status" aria-live="polite">Conferindo as informações do aplicativo…</p>
+      <button class="button secondary" id="retry" type="button" hidden>Tentar novamente</button>
+      <a class="plain-link" id="without-invite" href="/convite/" hidden>Continuar para o download sem indicação</a>
+
+      <div id="invite-section" hidden>
+        <div class="step-heading"><span class="step">01</span><div><h3>Guarde seu convite</h3><p>Copie agora. Você vai usá-lo dentro do app.</p></div></div>
+        <label for="invite-code" class="code-label">CÓDIGO RECEBIDO</label>
+        <div class="code-row"><input id="invite-code" type="text" readonly spellcheck="false" autocomplete="off" aria-describedby="copy-status"><button type="button" id="copy-code" aria-label="Copiar código do convite">Copiar</button></div>
+        <p id="copy-status" class="helper" role="status" aria-live="polite">Também é possível colar o link completo do convite no app.</p>
+        <p class="helper">Cada convite pode ser usado por uma única pessoa. Um telefone já indicado não pode receber outra indicação, mesmo após cancelamento.</p>
+      </div>
+
+      <div id="download-section" hidden>
+        <div class="step-heading"><span class="step" id="download-step">02</span><div><h3>Baixe o LZ-GAMES</h3><p id="release-label">Aplicativo para Android</p></div></div>
+        <a class="button primary" id="download-apk" download><span>BAIXAR APLICATIVO</span><span aria-hidden="true">↓</span></a>
+        <p class="helper">Arquivo APK para instalar diretamente no Android. Se já usa o app, atualize sem desinstalar a versão anterior.</p>
+        <details><summary>Como instalar e conferir o arquivo</summary><p>Abra o arquivo baixado. Se o Android solicitar, autorize a instalação pelo navegador usado no download. Não é necessário desativar o Play Protect.</p><p>No iPhone, este APK não pode ser instalado.</p><p>SHA-256 do APK oficial:</p><code id="apk-hash"></code></details>
+      </div>
+
+      <div id="use-invite" class="last-step" hidden>
+        <div class="step-heading"><span class="step">03</span><div><h3>Vincule antes de entrar</h3><p>Na entrada ou cadastro, toque em <strong>“Recebi um convite”</strong>, cole o código e só então continue.</p></div></div>
+        <div class="reward-note"><strong>Seu amigo pode ganhar R$ 9,90 em crédito para serviços.</strong><p>O benefício é de quem indicou você, após o seu primeiro acesso elegível ao app. É acumulável, sem saque, e separado dos 5% por indicação de serviço.</p><p>Abrir esta página ou baixar o APK não vincula a indicação. Convites aceitos depois de um acesso anterior não geram o bônus retroativamente.</p></div>
+      </div>
+      <p class="helper" id="generic-note" hidden>Não recebeu um convite? Você também pode instalar o app e criar sua conta normalmente, sem indicação.</p>
+      <noscript><p>Ative o JavaScript para conferir e copiar o convite. Você também pode <a href="/convite/lz-games-26.apk" download>baixar o APK 26</a> e colar o link completo recebido em “Recebi um convite”, antes de entrar no app.</p></noscript>
+    </section>
+  </main>
+  <footer class="wrap footer"><strong>LZ-GAMES</strong><span>Seu jogo. Seu cuidado. Sua conexão.</span></footer>
+</body>
+</html>

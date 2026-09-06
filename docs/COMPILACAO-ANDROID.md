@@ -1,6 +1,12 @@
 # Tutorial completo de compilação Android — LZ-GAMES
 
-Para assumir o projeto desde a instalação das ferramentas, leia primeiro o [handoff completo](HANDOFF-COMPLETO.md). A entrega atual é o [APK 17 / VFX-09](BUILD-17.md); os números de versão abaixo são exemplos e devem ser comparados com o histórico antes de um novo envio.
+**Último APK concluído: [26 / VFX-15](BUILD-26.md), baixado, validado e publicado.** Não enviar novamente o 26 para consultar o andamento nem esperar os detalhes novos da Agenda ao reinstalar um APK anterior.
+
+**Fonte do APK 26:** detalhes completos dos agendamentos, confirmação pelo modelo existente de WhatsApp, Lotties maiores, foguete +30% e convite novo por compartilhamento. As [guardas de indicação e a correção da Agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md) já estão no servidor. Este build foi concluído em 06/09/2026; os passos de outro envio só devem ser executados quando solicitado.
+
+A entrega concluída é o [APK 26, versão 1.0.1](BUILD-26.md). Pacote/versão, integridade ZIP, certificado original, detalhes da Agenda e seis referências Lottie no bundle foram conferidos. [Consultar o build](https://expo.dev/accounts/lzgames/projects/lz-games/builds/50448f84-c8fd-4194-8a8d-99d6a32e783f) · [Baixar APK 26](https://app.lzgames.com.br/convite/lz-games-26.apk). Teste físico continua pendente.
+
+Para assumir o projeto, consulte também o [guia de notificações push](NOTIFICACOES-PUSH.md), com Firebase/FCM, testes físicos e limites operacionais. O [handoff completo](HANDOFF-COMPLETO.md), o [registro do APK 17 / VFX-09](BUILD-17.md) e o [registro do build 19](BUILD-19.md) são históricos e permanecem como referência. Compare sempre a versão local com o histórico do EAS antes de um novo envio.
 
 Este documento explica como preparar o ambiente, testar o projeto e gerar os dois formatos Android:
 
@@ -49,18 +55,35 @@ npm ci
 
 Durante o desenvolvimento, `npm install` também funciona, mas pode atualizar o arquivo de dependências.
 
+### Restaurar a configuração Firebase após o clone
+
+O `google-services.json` é ignorado pelo Git; portanto, não aparece ao baixar o repositório. Antes de compilar:
+
+1. No projeto Firebase existente `lz-games-app-e16e4972`, baixe a configuração do app Android de pacote `br.com.lzgames.app` usando a conta autorizada. O [guia de push](NOTIFICACOES-PUSH.md) também contém o comando para recuperá-la.
+2. Coloque o arquivo na raiz de `APP-LZGAMES`, ao lado de `app.json`. Não crie outro projeto Firebase para cada build.
+3. Execute `npm run check:push`. O resultado valida a configuração local; a credencial FCM V1 correspondente também precisa estar vinculada ao projeto no EAS.
+
+Como alternativa, o EAS aceita `GOOGLE_SERVICES_JSON` como variável **do tipo arquivo**, disponível ao ambiente do perfil utilizado. A verificação local ainda precisa da cópia local ou dessa variável apontando para um arquivo acessível na máquina.
+
+O `app.config.js` configura o arquivo cliente e bloqueia builds Android sem ele. A `.easignore` permite o envio desse arquivo cliente ao compilador, apesar de ele não estar no Git. **Não confunda com a chave privada de conta de serviço FCM:** ela deve permanecer fora do repositório e do pacote enviado; a credencial já cadastrada no EAS não precisa ser baixada para compilar.
+
 ## 4. Validar o código
 
 Execute antes de toda compilação:
 
 ```bash
+npm run check:push
 npm run typecheck
+npm run test:agenda
+npm run test:referrals
+npm run test:orders
+npm run test:push
 npm run test:effects
 npx expo-doctor
 git status --short
 ```
 
-O TypeScript precisa terminar sem erros. Revise qualquer alerta do Expo Doctor antes de gerar a versão final.
+Todos os testes precisam terminar sem erros. Revise qualquer alerta do Expo Doctor antes de gerar a versão final. `check:push` não testa entrega em aparelho: a validação física de permissão, recebimento, abertura e saída da conta está no [guia de push](NOTIFICACOES-PUSH.md).
 
 ## 5. Executar no Expo durante o desenvolvimento
 
@@ -107,16 +130,24 @@ npx eas-cli whoami
 
 O resultado de `whoami` deve mostrar uma conta autorizada no projeto LZ-GAMES.
 
+Confira o uso incluído no plano antes de enviar um build; esta consulta não contrata nada:
+
+```bash
+npx eas-cli account:usage lzgames --non-interactive
+```
+
+Não compre plano/créditos nem envie uma compilação que gere cobrança adicional sem autorização. Neste projeto o usuário não autorizou novas compras. Consulte também o histórico para evitar envio duplicado; não compartilhe JSON bruto ou URLs assinadas de logs.
+
 ## 7. Atualizar a versão Android
 
-Antes de distribuir uma atualização, abra `app.json` e aumente:
+O build 26 já enviado usa estes valores em `app.json` (registro da entrega, não instrução para reenviá-la):
 
 ```json
 {
   "expo": {
-    "version": "1.0.0",
+    "version": "1.0.1",
     "android": {
-      "versionCode": 18
+      "versionCode": 26
     }
   }
 }
@@ -125,7 +156,7 @@ Antes de distribuir uma atualização, abra `app.json` e aumente:
 - `version`: versão visível ao consumidor.
 - `android.versionCode`: número interno inteiro, sempre maior que o build anterior.
 
-Exemplo: depois do build `17` desta entrega, use um número maior, como `18`, na próxima atualização. O perfil `preview` não incrementa automaticamente; não reenvie o número de um build em andamento por engano.
+Antes da próxima atualização, aumente o `versionCode` para um número ainda não enviado e maior que o anterior; depois do `26`, seria `27` se o histórico do EAS não tiver avançado; a fonte local permanece em `26`, o último número enviado. O perfil `preview` não incrementa automaticamente; não reenvie o número de um build em andamento por engano.
 
 ## 8. Gerar APK para instalação direta
 
@@ -135,16 +166,16 @@ O perfil `preview` do `eas.json` produz um APK:
 npm run build:android:preview
 ```
 
-O mesmo comando, de forma explícita:
+Forma explícita, preservando a verificação de configuração do comando npm:
 
 ```bash
-npx eas-cli build --platform android --profile preview
+npm run check:push && npx eas-cli build --platform android --profile preview
 ```
 
 Para enviar o build e liberar o terminal sem aguardar:
 
 ```bash
-npx eas-cli build --platform android --profile preview --non-interactive --no-wait --freeze-credentials
+npm run check:push && npx eas-cli build --platform android --profile preview --non-interactive --no-wait --freeze-credentials
 ```
 
 Ao terminar, o Expo apresenta uma página e um link para o arquivo `.apk`. Envie esse link ao testador. No Android, ele deverá permitir a instalação de aplicativos provenientes do navegador ou gerenciador de arquivos.
@@ -160,12 +191,18 @@ npm run build:android:production
 Ou:
 
 ```bash
-npx eas-cli build --platform android --profile production
+npm run check:push && npx eas-cli build --platform android --profile production
 ```
 
 O AAB não é instalado diretamente no celular. Ele deve ser enviado ao Google Play Console.
 
 ## 10. Consultar um build
+
+Para consultar o build 26 já concluído, sem criar outra compilação:
+
+```bash
+npx eas-cli build:view 50448f84-c8fd-4194-8a8d-99d6a32e783f
+```
 
 Copie o identificador exibido pelo Expo e execute:
 
@@ -173,10 +210,10 @@ Copie o identificador exibido pelo Expo e execute:
 npx eas-cli build:view ID-DO-BUILD
 ```
 
-Para obter os dados em JSON:
+Para obter os dados da entrega atual em JSON, também somente leitura:
 
 ```bash
-npx eas-cli build:view ID-DO-BUILD --json
+npx eas-cli build:view 50448f84-c8fd-4194-8a8d-99d6a32e783f --json
 ```
 
 Estados comuns:
@@ -189,17 +226,17 @@ Estados comuns:
 
 ## 11. Baixar o arquivo pelo terminal
 
-Depois que o build estiver como `FINISHED`, copie o endereço de `artifacts.buildUrl` retornado pelo JSON:
+O [registro do APK 26](BUILD-26.md) centraliza o download oficial desta entrega, já `FINISHED` e verificada. Nas próximas entregas, aguarde `FINISHED` antes de baixar; confira a origem em `artifacts.buildUrl` no JSON do ID acima. Não reutilize o link de um APK anterior para testar estas mudanças. Use um nome novo, sem sobrescrever o APK anterior:
 
 ```bash
-curl -fL 'URL-DO-ARQUIVO' -o LZ-GAMES.apk
+curl --proto '=https' --proto-redir '=https' -fL 'URL-DO-ARQUIVO' -o LZ-GAMES-build26.apk
 ```
 
 Confirme tamanho e integridade:
 
 ```bash
-ls -lh LZ-GAMES.apk
-sha256sum LZ-GAMES.apk
+ls -lh LZ-GAMES-build26.apk
+sha256sum LZ-GAMES-build26.apk
 ```
 
 Para um AAB, troque o nome final para `LZ-GAMES.aab`.
@@ -210,7 +247,7 @@ Com o Android Debug Bridge instalado, depuração USB habilitada e o aparelho au
 
 ```bash
 adb devices
-adb install -r LZ-GAMES.apk
+adb install -r LZ-GAMES-build26.apk
 ```
 
 O parâmetro `-r` atualiza uma instalação anterior mantendo os dados, desde que o pacote esteja assinado pela mesma chave.
@@ -238,21 +275,29 @@ Antes de solicitar publicação, conclua:
 
 ## 14. Fluxo recomendado para cada atualização
 
+Em uma cópia sem alterações locais pendentes, use a sequência abaixo. Em diretório já modificado, revise e preserve o trabalho antes de atualizar pelo Git; um envio EAS não faz commit/push automaticamente.
+
 ```bash
 git pull --ff-only origin main
 npm ci
+npm run check:push
 npm run typecheck
+npm run test:agenda
+npm run test:referrals
+npm run test:orders
+npm run test:push
 npm run test:effects
 npx expo-doctor
 git status --short
 npx eas-cli whoami
-npx eas-cli build --platform android --profile preview
+npx eas-cli account:usage lzgames --non-interactive
+npm run build:android:preview
 ```
 
-Depois que o APK for aprovado nos testes:
+Em outro computador, restaure antes o arquivo Firebase conforme a seção 3. Antes do último comando, confirme a versão e a ausência de outro build equivalente em andamento. Depois que o APK for aprovado nos testes, inclusive push em aparelho físico:
 
 ```bash
-npx eas-cli build --platform android --profile production
+npm run build:android:production
 ```
 
 ## 15. Solução de problemas
@@ -277,7 +322,7 @@ git log -1 --oneline
 Use `--clear-cache` se for necessário eliminar cache remoto:
 
 ```bash
-npx eas-cli build --platform android --profile preview --clear-cache
+npm run check:push && npx eas-cli build --platform android --profile preview --clear-cache
 ```
 
 ### O EAS não reconhece a conta ou projeto
@@ -299,6 +344,9 @@ Consulte a página fornecida pelo EAS. Fechar o terminal após usar `--no-wait` 
 - `App.tsx`: aplicação principal.
 - `src/`: telas, integrações e componentes.
 - `app.json`: nome, pacote, versão e ícones.
+- `app.config.js`: validação e inclusão da configuração Firebase Android.
+- `google-services.json`: configuração cliente Firebase, recuperada separadamente e ignorada pelo Git.
+- `.easignore`: controle dos arquivos enviados ao compilador; não incluir chaves privadas.
 - `eas.json`: perfis APK/AAB e ambiente de produção.
 - `assets/`: ícones e tela de abertura.
 - `play-store/`: materiais preparados para publicação.

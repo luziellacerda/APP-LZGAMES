@@ -1,0 +1,52 @@
+--- a/routes/referrals.js
++++ b/routes/referrals.js
+@@ -9,6 +9,7 @@
+ const { normalizePhone } = require("../lib/phoneUtils");
+ const auth = require("../middleware/referralAuth");
+ const { confirmLegacy } = require("../lib/serviceReferral");
++const { appReferralSummary, insertTimedAppReferral } = require("../lib/appReferral");
+ const { REFERRAL_SECRET, SERVICE_SECRET } = require("../config/jwtConfig");
+ // -----------------------------------------------------------------------------
+ // Configurações
+@@ -182,6 +183,7 @@
+       indicacoes_concluidas: Number(row.concluidas || 0),
+       indicacoes_canceladas: Number(row.canceladas || 0),
+       cashback_aprovado_centavos: Number(row.cashback_aprovado_centavos || 0),
++      app_referral_credit: await appReferralSummary(cashbackDb, indicadorId),
+       indicacoes_validas: Number(row.concluidas || 0),
+       referral_program: {
+         tiers: completionProgram ? [completionTier] : REFERRAL_TIERS,
+@@ -410,23 +412,7 @@
+ 
+     const codigoRegistro = gerarCodigoRegistro(indicadorId, indicadoId);
+ 
+-    const [result] = await cashbackDb.query(
+-      `
+-      INSERT INTO indicacoes (
+-        indicador_cliente_id,
+-        indicado_cliente_id,
+-        nome_indicado,
+-        tel_indicado,
+-        cpf_indicado,
+-        codigo_ref,
+-        origem_canal,
+-        status,
+-        cashback_valor_centavos,
+-        created_at,
+-        updated_at
+-      )
+-      VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', 0, NOW(), NOW())
+-      `,
++    const result = await insertTimedAppReferral(cashbackDb,
+       [
+         indicadorId,
+         indicadoId,
+@@ -449,7 +435,7 @@
+       },
+     });
+   } catch (err) {
+-    console.error("[referrals] erro em POST /referrals/accept:", err);
++    console.error("[referrals] não foi possível registrar indicação; dados privados omitidos.");
+     return res.status(500).json({
+       ok: false,
+       error: "Erro interno ao registrar indicação.",

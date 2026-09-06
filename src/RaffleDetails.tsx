@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {Linking,Pressable,StyleSheet,Text,View} from 'react-native';
 import {RaffleData,User} from './api';
 import {AnimatedIcon,NeonCard} from './effects/Neon';
+import {TrophyLottie} from './effects/TrophyLottie';
 
 const clean=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
 const dateTime=(value:string|null)=>value?new Date(value).toLocaleString('pt-BR',{dateStyle:'long',timeStyle:'short'}):'Aguardando programação oficial';
@@ -19,9 +20,14 @@ export function RaffleDetails({data,user}:{data:RaffleData;user:User}){
   const winners=useMemo(()=>data.history.flatMap(game=>game.prizes.filter(prize=>prize.winner).map(prize=>({...prize,giveawayId:game.id,giveawayTitle:game.title}))).sort((a,b)=>new Date(b.drawnAt??0).getTime()-new Date(a.drawnAt??0).getTime()),[data.history]);
   return <>
     <NeonCard color="#c6a7ff" radius={22} style={s.hero}>
-      <View style={{flexDirection:'row',alignItems:'center',gap:8}}><AnimatedIcon name="trophy" size={32}/><Text style={[s.state,live&&s.live]}>{live?'● SORTEIO AO VIVO':data.scheduledAt?'PRÓXIMO SORTEIO':'SORTEIOS LZ GAMES'}</Text></View>
-      <Text style={s.title}>{String(data.giveaway?.title??current?.title??'Novidades e premiações')}</Text>
-      <Text style={s.date}>{dateTime(target)}</Text>
+      <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
+        <View style={{flex:1,minWidth:0}}>
+          <Text style={[s.state,live&&s.live]}>{live?'● SORTEIO AO VIVO':data.scheduledAt?'PRÓXIMO SORTEIO':'SORTEIOS LZ GAMES'}</Text>
+          <Text style={s.title}>{String(data.giveaway?.title??current?.title??'Novidades e premiações')}</Text>
+          <Text style={s.date}>{dateTime(target)}</Text>
+        </View>
+        <TrophyLottie size={88}/>
+      </View>
       {clock?<View style={s.clock}>{[['DIAS',clock.days],['HORAS',clock.hours],['MIN',clock.minutes],['SEG',clock.seconds]].map(([label,value])=><View key={String(label)} style={s.clockUnit}><Text style={s.clockNumber}>{pad(Number(value))}</Text><Text style={s.clockLabel}>{label}</Text></View>)}</View>:<View style={s.noSchedule}><Text style={s.noScheduleText}>A próxima data será divulgada pelo servidor oficial.</Text></View>}
       <View style={s.capacity}><View style={[s.capacityFill,{width:`${Math.min(100,data.participantLimit?data.participantCount/data.participantLimit*100:0)}%`}]}/></View>
       <Text style={s.meta}>{data.participantCount} de {data.participantLimit} participantes</Text>

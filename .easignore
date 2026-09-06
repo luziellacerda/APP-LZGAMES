@@ -1,0 +1,20 @@
+node_modules/
+.expo/
+dist/
+server/
+*.jks
+*.keystore
+play-store/*.aab
+play-store/*.apk
+.env
+.env.*
+!.env.example
+GoogleService-Info.plist
+*-firebase-adminsdk-*.json
+credentials.json
+*-service-account*.json
+*serviceaccount*.json
+firebase-debug*.log
+# Firebase Android client configuration is required by the native build.
+# This is NOT the private service-account key. Keep that key out of the upload.
+!google-services.json

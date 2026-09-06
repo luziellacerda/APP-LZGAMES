@@ -1,6 +1,41 @@
 # Efeitos do aplicativo
 
-Somente o app foi alterado. Login, endpoints e regras de OS/agendamento/sorteios permanecem preservados.
+Este documento descreve os efeitos do app. A atualização independente do link/página de convite está registrada em [CONVITE-APP.md](CONVITE-APP.md); regras de OS/agendamento/sorteios permanecem preservadas.
+
+## Atualização VFX-13 — Lotties escolhidos para indicações, calendário e Suite
+
+Fonte posterior ao APK 23, ainda sem nova compilação. Entradas “Indique e ganhe” recebem Money de manju; cashback aprovado, Money de Mahendra; crédito por app, a moeda 3D de Christina; “Convide alguém”, Payment Successful de Uzair; Agenda, El calendario de Kevin; cartão “Suite e licenças”, rocket share de Pedro. Os links exatos, créditos e adaptações estão em [assets/README.md](../src/effects/assets/README.md).
+
+`CardLottie.tsx` e `cardLotties.ts` acrescentam espaços decorativos limitados, sem capturar toque ou indicar aprovação financeira. `menuLotties.ts` troca apenas a fonte do calendário. Suite preserva seu espaço de 54 dp; o foguete do menu TurboRama e a nave de fundo são independentes. As animações são locais, pausam conforme visibilidade/segundo plano/redução de movimento e têm fallback estático. Sem novas dependências, downloads em execução ou WebViews. A licença completa acompanha cada fonte em `meta.credit`.
+
+Badge atual: `TESTE VFX-13`, apenas em desenvolvimento. Validação: 43 testes de efeitos, 125 testes totais do app, TypeScript, exportação Android/Hermes e prévia SVG offline nos tamanhos compactos. Android físico permanece pendente. O APK 23 não contém esta atualização.
+
+## Atualização VFX-12 — ícones da web e troféu menor
+
+- Foguete de TurboRama, calendário de Agenda e chave inglesa de Minhas OS passam a usar arquivos Lottie obtidos na web, empacotados localmente com autor, origem e termos completos da licença. O mesmo mapeamento atende cards, linha de agendamento e ícones correspondentes do menu inferior.
+- `src/effects/menuLotties.ts` centraliza fontes, escala, velocidade e pose estática. Os ícones mantêm seus espaços de 54/32/28 dp; navegação, dimensões dos cards e dados não mudam.
+- `AnimatedIcon` mantém pausa conforme visibilidade, app em primeiro plano, movimento reduzido e aba ativa. Uma pose visível substitui a animação quando está parada; falha do renderer usa o emoji correspondente. Decorações não capturam toques.
+- Troféu reduzido de player 1,7× para 1,5×: desenho aproximadamente 12% menor, nos mesmos slots de 86/88 dp e com o mesmo giro.
+- Nenhuma dependência nova, download de animação em execução ou alteração na nave de fundo, moedas, Matrix, laser dos cards ou eletricidade do menu.
+
+O badge de desenvolvimento identifica `TESTE VFX-12`; continua ausente na interface do APK de consumidor. `scripts/menu-lottie.test.cjs` acrescenta regressões das novas fontes e de sua integração ao player nativo.
+
+## Atualização local VFX-11 — 05/09/2026
+
+Estas alterações são posteriores ao APK 19 e estão no [APK 20](BUILD-20.md), concluído e verificado. É necessário instalar esse novo APK; elas não chegam automaticamente à versão anterior instalada.
+
+- **Ativar avisos de sorteios (WhatsApp):** botão superior abaixo do texto, ocupando a largura do card, altura mínima de 52 dp, texto de 13 sp e margem adicional de toque de 6 dp. A altura pode crescer com a fonte do sistema. Mostra toque, espera e `SALVANDO…`; desabilita enquanto processa e informa falhas por alerta visível, permitindo nova tentativa. O consentimento segue opcional e independente do push. O botão inferior de notificações nativas mantém o layout anterior.
+- **Fundo de Sorteios:** substitui a chuva de troféus por um único Lottie nativo com 12 moedas douradas e três desenhos vetoriais compartilhados, com aro, relevo, giro e reflexos. Ciclo de queda de 18 segundos a 24 fps. Não depende de WebView ou downloads; pausa com app em segundo plano/redução de movimento. As outras abas mantêm seus fundos.
+- **Troféu maior nos cards:** animação [Trophy, de Mahendra Bhunwal](https://lottiefiles.com/free-animation/trophy-yEGPe40FVr), obtida na web. Giro em perspectiva já desenhado no Lottie; repete frames 24–50 (fim exclusivo 51) a velocidade 0,45, aproximadamente dois segundos por volta. O recorte elimina a entrada fora de quadro e preserva a taça inteira em slots de 86/88 dp, com player centralizado 1,7×. O card da página inicial mantém 112 dp de altura e reserva espaço para o texto; o card principal de Sorteios mantém cronômetro, dados e ações.
+- **Leveza e acessibilidade:** sem dependências novas, sem temporizadores JS por moeda e sem camadas que interceptem toques. O troféu pausa fora do card visível e mostra uma pose frontal quando a animação está desativada. Licença e atribuição acompanham a animação empacotada em `meta.credit`; a cópia original do JSON permanece intacta.
+
+Novos arquivos: `CoinRainBackground.tsx`, `coinRainAnimation.ts`, `TrophyLottie.tsx` e `assets/trophy-*`, dentro de `src/effects/`. Origem e licença completas em `src/effects/assets/README.md` e `trophy-license.json`. `TrophyRain.tsx`/`trophyRainScene.ts` permanecem somente como implementação anterior, sem montagem na tela atual.
+
+`npm run test:push` inclui os testes dos botões; `npm run test:effects` inclui moedas e troféu. Os testes usam fixtures sem rede/consumidores reais. Renderização isolada de Lottie e exportação Android não substituem teste de toque/desempenho no celular.
+
+Validação desta alteração: TypeScript sem erros, 18 testes de push/controles e 30 testes de efeitos aprovados, `git diff --check` limpo. Renderização SVG isolada do Lottie confirmou moedas em movimento e taça inteira nos frames 24/30/37/44/50, sem erros ou requisições de rede. Exportação Android/Hermes local concluída (bundle de 1.923.322 bytes), contendo o botão e os termos completos da licença. Após pedido explícito, foi enviado o APK 20 ao EAS; não houve envio de mensagens ou alteração de dados de clientes nesta etapa.
+
+## Histórico dos efeitos preservados
 
 - Cards principais, OS, agendamento, conta, pacotes, licenças e prêmios: uma luz percorre o contorno em 6 segundos, com uma única ponta branca e cauda contínua em gradiente de opacidade. Não usa os nove trechos repetidos anteriores. O halo compartilha a mesma cauda e relógio; transparência/cor têm paradas alinhadas para não criar máscaras vazias nas retas. Chanfro e sombra de contato permanecem. Não há barra pulsante acima das telas.
 - Ícones principais: seis animações Lottie vetoriais locais (início, ferramentas, calendário, foguete, troféu e conta). Sem downloads adicionais. Mensagens de status continuam sendo texto.
@@ -9,6 +44,7 @@ Somente o app foi alterado. Login, endpoints e regras de OS/agendamento/sorteios
 - VFX-07 altera somente o acabamento das turbinas/chama/vapor: anéis metálicos, núcleo quente com halo e reflexos, chama curva que muda de largura/comprimento e ondas que avançam para a ponta. A mesma variação suave de pressão alimenta a luz do motor e da esteira. A fumaça tem volume simulado por três texturas locais de 96×96 com camadas sombreadas, expansão, pequenos redemoinhos, resfriamento e dissipação gradual. Até 64 partículas, sem blur de tela inteira, novas dependências ou novos WebViews. Trajetória, casco, câmera e efeitos aprovados de cards/menu não foram alterados.
 - VFX-08: somente a aba Sorteios recebe chuva Matrix de troféus vetoriais, mantendo verde, brilho, dissipação e ritmo de queda (18 px a cada 66 ms). Dois símbolos são desenhados em texturas locais uma única vez, sem fontes de emojis nem downloads. Pausa em segundo plano/redução de movimento. O Matrix de letras das outras páginas, as turbinas e os efeitos dos menus/cards foram preservados.
 - VFX-09: os troféus de Sorteios, seu halo e o rastro passam a dourado, com pontas claras e sombras âmbar. Apenas a paleta deste fundo mudou; desenho, velocidade, dissipação e demais páginas permanecem iguais.
+- VFX-10: a barra inferior sobe 30 px e mantém uma área livre abaixo dela, evitando sobreposição pelos controles de navegação de aparelhos Android. Não muda o tamanho dos botões, as abas ou os efeitos.
 
 ## Arquivos
 
@@ -22,7 +58,7 @@ Somente o app foi alterado. Login, endpoints e regras de OS/agendamento/sorteios
 - `src/effects/Spaceflight.tsx`: integração da nave e do fundo à TurboRama.
 - `src/effects/flightLayout.ts`: fonte JavaScript literal da câmera/simulação, compartilhada pelos testes e WebView. Não usa `Function.toString()` no Hermes de produção nem avaliação de código no lado nativo.
 - `src/effects/ElectricMenu.tsx` e `electricMenuScene.ts`: renderer único do menu, alinhado aos botões pelo `onLayout`, com pausa em segundo plano/redução de movimento e limite de aproximadamente 30 fps.
-- `src/effects/PreviewRevision.tsx`: identificação temporária `TESTE VFX-09` no login e na área autenticada da prévia, com estado ativo/pausado das animações. Usa `__DEV__`: não aparece no APK de produção. O diagnóstico não registra dados do consumidor.
+- `src/effects/PreviewRevision.tsx`: identificação temporária `TESTE VFX-13` no login e na área autenticada da prévia, com estado ativo/pausado das animações. Usa `__DEV__`: não aparece no APK de produção. O diagnóstico não registra dados do consumidor.
 
 O halo combina camadas de traço com [composição aditiva do Canvas](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation). A nave usa projeção 3D e partículas cinemáticas desenhadas em Canvas 2D; não é um simulador físico completo nem refração por ray tracing. A "fumaça" é vapor iônico estilizado, sem gravidade terrestre.
 

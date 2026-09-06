@@ -43,6 +43,8 @@ export function ServiceOrderCard({ order }: { order: ServiceOrder }) {
   const [open, setOpen] = useState(false);
   const id = order.os_id ?? order.id ?? "—";
   const equipment = order.equipamento ?? order.equipamento_nome ?? order.modelo ?? "Equipamento";
+  const appCreditCents = Number(order.app_credit_centavos);
+  const hasAppCredit = Number.isSafeInteger(appCreditCents) && appCreditCents > 0;
 
   return (
     <NeonCard style={s.card}>
@@ -93,8 +95,9 @@ export function ServiceOrderCard({ order }: { order: ServiceOrder }) {
             <Field label="Frete" value={currency(order.frete)} />
             <Field label="Subtotal" value={currency(order.subtotal)} />
             <Field label="Desconto" value={order.desconto ? `${order.desconto}${order.tipo_desconto === "%" ? "%" : ""}` : "Sem desconto"} />
+            {hasAppCredit?<Field label="Crédito do app · serviços" value={`− ${currency(appCreditCents/100)}`} />:null}
             <Field label="Entrada paga" value={currency(order.entrada)} />
-            <Field label="Total" value={currency(order.valor)} />
+            <Field label={hasAppCredit?"Total após crédito":"Total"} value={currency(hasAppCredit?order.subtotal:order.valor)} />
             <Field label="Pagamento" value={String(order.pago ?? "").toLowerCase() === "sim" ? "Pago" : text(order.pago)} />
           </Section>
 

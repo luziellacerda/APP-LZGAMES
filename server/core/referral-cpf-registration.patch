@@ -1,0 +1,11 @@
+--- a/routes/authRoutes.js
++++ b/routes/authRoutes.js
+@@ -351,7 +351,7 @@
+     if (nome.length < 3 || nome.length > 50) return res.status(400).json({ ok: false, error: "Informe seu nome completo." });
+     if (!telefone || telefone.length !== 11) return res.status(400).json({ ok: false, error: "Informe um WhatsApp válido com DDD." });
+     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 50) return res.status(400).json({ ok: false, error: "Informe um e-mail válido." });
+-    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return res.status(400).json({ ok: false, error: "Informe um CPF válido." });
++    if (!require('../lib/referralGuard').cpf(cpf)) return res.status(400).json({ ok: false, error: "Informe um CPF válido." });
+     if (senha.length < 8 || senha.length > 128 || !/[A-Za-z]/.test(senha) || !/\d/.test(senha)) return res.status(400).json({ ok: false, error: "A senha deve ter pelo menos 8 caracteres, com letras e números." });
+     if (req.body?.consentimento !== true) return res.status(400).json({ ok: false, error: "Confirme o aceite dos termos e da Política de Privacidade." });
+     const variants = buildPhoneVariants(telefone);

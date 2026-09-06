@@ -6,13 +6,13 @@ import { useMotionAllowed } from "./Motion";
 export function PreviewRevision() {
   const motion = useMotionAllowed();
   useEffect(() => {
-    if (__DEV__) console.info(`[LZ PREVIEW VFX-09] motion=${motion}`);
+    if (__DEV__) console.info(`[LZ PREVIEW VFX-15] motion=${motion}`);
   }, [motion]);
   if (!__DEV__) return null;
   return (
     <View pointerEvents="none" style={s.badge}>
       <Text style={s.text} testID="preview-revision">
-        TESTE VFX-09 · {motion ? "EFEITOS ATIVOS" : "ANIMAÇÕES PAUSADAS"}
+        TESTE VFX-15 · {motion ? "EFEITOS ATIVOS" : "ANIMAÇÕES PAUSADAS"}
       </Text>
     </View>
   );

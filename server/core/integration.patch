@@ -1,0 +1,22 @@
+--- a/routes/referrals.js
++++ b/routes/referrals.js
+@@ -7,7 +7,7 @@
+ 
+ const db = require("../db");
+ const { normalizePhone } = require("../lib/phoneUtils");
+-const auth = require("../middleware/auth");
++const auth = require("../middleware/referralAuth");
+ const { REFERRAL_SECRET, SERVICE_SECRET } = require("../config/jwtConfig");
+ // -----------------------------------------------------------------------------
+ // Configurações
+--- a/app.js
++++ b/app.js
+@@ -67,7 +67,7 @@
+   },
+   credentials: true,
+   methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+-  allowedHeaders: ["Content-Type", "Authorization"],
++  allowedHeaders: ["Content-Type", "Authorization", "X-LZ-Identity-Provider"],
+   optionsSuccessStatus: 204,
+ };
+ 

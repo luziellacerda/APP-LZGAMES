@@ -1,0 +1,71 @@
+--- a/painel/paginas/os/status.php
++++ b/painel/paginas/os/status.php
+@@ -689,6 +689,7 @@
+         exit('Erro: conexao.php não encontrado a partir de ' . __DIR__);
+     }
+     require_once $conexao;
++    require_once dirname(__DIR__,2).'/service-referral.php';
+     lz_carregar_config_whatsapp($pdo);
+ 
+     @session_start();
+@@ -707,6 +708,13 @@
+         exit('Erro: status vazio.');
+     }
+ 
++    try {
++        $id_usuario=lz_referral_authorize($pdo,$_SESSION,$_SERVER,'main',$id);
++    } catch(Throwable $error) {
++        http_response_code(403);
++        exit('Acesso não autorizado. Entre novamente no painel.');
++    }
++
+     $stmt = $pdo->prepare('SELECT * FROM os WHERE id = :id LIMIT 1');
+     $stmt->execute(array(':id' => $id));
+     $os = $stmt->fetch(PDO::FETCH_ASSOC);
+@@ -721,8 +729,7 @@
+         lz_processar_entrega($pdo, $os, $id, $id_usuario);
+     }
+ 
+-    $stmt = $pdo->prepare('UPDATE os SET status = :status, funcionario = :funcionario WHERE id = :id');
+-    $stmt->execute(array(':status' => $status, ':funcionario' => $id_usuario, ':id' => $id));
++    lz_referral_change_status($pdo,$id,$status,$id_usuario);
+ 
+     // Recarrega a OS já com status atualizado para montar a mensagem.
+     $stmt = $pdo->prepare('SELECT * FROM os WHERE id = :id LIMIT 1');
+--- a/painel/paginas/os_tecnico/status.php
++++ b/painel/paginas/os_tecnico/status.php
+@@ -1,15 +1,25 @@
+ <?php 
+ $tabela = 'os';
+ require_once("../../../conexao.php");
++require_once dirname(__DIR__,2).'/service-referral.php';
+ @session_start();
+-$id_usuario = $_SESSION['id'];
++$id_usuario = $_SESSION['id'] ?? 0;
+ 
+ $data_hoje = date('Y-m-d');
+ 
+-$id = $_POST['id_da_os'];
+-$status = $_POST['status'];
++$id = (int)($_POST['id_da_os'] ?? 0);
++$status = trim((string)($_POST['status'] ?? ''));
+ 
+-$pdo->query("UPDATE $tabela SET status = '$status', funcionario = '$id_usuario' WHERE id = '$id'");
++try {
++    $id_usuario=lz_referral_authorize($pdo,$_SESSION,$_SERVER,'technician',$id);
++} catch(Throwable $error) {
++    http_response_code(403);exit('Acesso não autorizado. Entre novamente no painel.');
++}
++try {
++    lz_referral_change_status($pdo,$id,$status,$id_usuario);
++} catch(Throwable $error) {
++    http_response_code(500);exit('Não foi possível salvar o status da OS. Tente novamente.');
++}
+ 
+ echo 'Alterado com Sucesso';
+ 
+@@ -144,4 +154,3 @@
+ 
+ 
+ ?>
+-

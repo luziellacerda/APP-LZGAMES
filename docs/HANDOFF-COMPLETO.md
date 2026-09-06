@@ -1,8 +1,20 @@
 # Handoff completo — LZ-GAMES, do código ao APK
 
-Registro da entrega: **5 de setembro de 2026**. Este guia é para uma pessoa assumir o projeto, preparar outro computador, testar, modificar, salvar no GitHub, compilar e instalar o aplicativo.
+**Último APK concluído: [26 / VFX-15](BUILD-26.md), baixado, assinatura validada e página de compartilhamento atualizada.** [Baixar APK 26](https://app.lzgames.com.br/convite/lz-games-26.apk). Inclui [Agenda com detalhes ao tocar e confirmação via modelo existente de WhatsApp](AGENDA-DETALHES-E-WHATSAPP.md), Lotties maiores, foguete +30% e código novo a cada compartilhamento. Backend implantado e 137 testes do app aprovados.
 
-O produto atual é **um aplicativo Android para clientes**. Ele reúne assistência/OS, agenda, TurboBox/TurboRama e sorteios. Este repositório contém o aplicativo, não os bancos de dados nem o código dos servidores dos sites.
+**Atualização ativa no servidor:** [indicação única global, convite de uso único e correção da agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md). Leia esse registro para regras, migração, backups, validações e limites antifraude. A proteção de backend já atende aos APKs anteriores; alteração visual não aparece num APK sem nova compilação. Os parágrafos de versões antigas abaixo preservam o histórico.
+
+Atualizações posteriores no servidor: [cashback de 5% pela conclusão da OS, com início na nota nº 480](CASHBACK-SERVICOS-5.md), [bônus de R$ 9,90 pelo primeiro acesso elegível ao app](BONUS-APP-990.md) e [uso do crédito nas notas de serviço](USO-CREDITO-APP.md), todos ativados em etapas distintas. Convite na entrada/cadastro, saldo disponível/usado do crédito sem saque e detalhe do abatimento integram o [APK 23](BUILD-23.md). **Compilação concluída (`FINISHED`), 45 conferências do APK aprovadas e assinatura igual ao APK 22; teste físico pendente.** A fonte passou em 115 testes, TypeScript e Expo Doctor (21/21). [Baixar APK 23](https://expo.dev/artifacts/eas/lmk9ZF4dCElUGq3-G0h3T0l1zIDoSYo96VKtbB9d5VM.apk). Os registros de builds abaixo são históricos.
+
+**Guia histórico da entrega 17 / VFX-09, registrado em 5 de setembro de 2026.** O corpo deste documento preserva os números de versão, comandos de exemplo e resultados daquela entrega; eles não indicam o estado da compilação atual.
+
+Para operar a entrega atual, leia [BUILD-26.md](BUILD-26.md), o [guia de detalhes da Agenda](AGENDA-DETALHES-E-WHATSAPP.md), o [guia de notificações push](NOTIFICACOES-PUSH.md) e o [tutorial de compilação Android](COMPILACAO-ANDROID.md). O restante deste documento descreve a entrega histórica 17; versões, comandos e resultados históricos não substituem os registros atuais.
+
+Consulta somente leitura do novo build: `npx --no-install eas-cli build:view 50448f84-c8fd-4194-8a8d-99d6a32e783f`. `versionCode 26` já foi enviado; conferir o histórico EAS antes de outro envio. O próximo número seria 27 se o histórico não tiver avançado. Não compilar novamente apenas para consultar.
+
+Ao preparar outro computador, restaure o `google-services.json` do projeto Firebase existente, pois ele é ignorado pelo Git. Não copie a chave privada FCM para o repositório ou pacote do app. Antes de compilar, execute `npm run check:push`, `npm run typecheck`, `npm run test:push` e os demais testes do tutorial atualizado. A validação local não comprova entrega no celular; os limites e o roteiro de teste físico estão no guia de push.
+
+Este guia histórico ajuda uma pessoa a assumir o projeto, preparar outro computador, testar, modificar, salvar no GitHub, compilar e instalar o aplicativo. O produto descrito é **um aplicativo Android para clientes**. Ele reúne assistência/OS, agenda, TurboBox/TurboRama e sorteios. Este repositório contém o aplicativo, não os bancos de dados nem o código dos servidores dos sites.
 
 ## 1. Comece entendendo os quatro lugares
 
