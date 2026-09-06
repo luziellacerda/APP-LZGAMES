@@ -1,12 +1,12 @@
 # Tutorial completo de compilação Android — LZ-GAMES
 
-**Nova entrega:** [APK 27 — Games Usados](BUILD-27.md), na branch `feature/appgamesusados-marketplace`. Não troque para `main` para compilar essa funcionalidade; o projeto anterior permanece separado. Consulte o registro do 27 e o EAS para seu estado atual.
+**Último APK concluído:** [APK 27 — Games Usados](BUILD-27.md), na branch `feature/appgamesusados-marketplace`. Não troque para `main` para compilar essa funcionalidade; o projeto anterior permanece separado. APK 27 baixado e verificado, com assinatura anterior preservada.
 
-**Último APK concluído: [26 / VFX-15](BUILD-26.md), baixado, validado e publicado.** Não enviar novamente o 26 para consultar o andamento nem esperar os detalhes novos da Agenda ao reinstalar um APK anterior.
+**Entrega anterior: [26 / VFX-15](BUILD-26.md), baixada, validada e publicada.** Não enviar novamente uma versão para consultar o andamento nem esperar recursos novos ao reinstalar um APK anterior.
 
 **Fonte do APK 26:** detalhes completos dos agendamentos, confirmação pelo modelo existente de WhatsApp, Lotties maiores, foguete +30% e convite novo por compartilhamento. As [guardas de indicação e a correção da Agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md) já estão no servidor. Este build foi concluído em 06/09/2026; os passos de outro envio só devem ser executados quando solicitado.
 
-A entrega concluída é o [APK 26, versão 1.0.1](BUILD-26.md). Pacote/versão, integridade ZIP, certificado original, detalhes da Agenda e seis referências Lottie no bundle foram conferidos. [Consultar o build](https://expo.dev/accounts/lzgames/projects/lz-games/builds/50448f84-c8fd-4194-8a8d-99d6a32e783f) · [Baixar APK 26](https://app.lzgames.com.br/convite/lz-games-26.apk). Teste físico continua pendente.
+A entrega atual é o [APK 27, versão 1.0.1](BUILD-27.md). Pacote/versão, integridade ZIP, certificado original e Games Usados no bundle foram conferidos. [Consultar o build](https://expo.dev/accounts/lzgames/projects/lz-games/builds/dd94f3ac-cfd1-4f29-a53b-122f335665f9) · [Baixar APK 27](https://expo.dev/artifacts/eas/ERlvnaWIleoa5OvrW6H6kD6sfF7FSeE8Q_voMPY-NQk.apk). Teste físico continua pendente.
 
 Para assumir o projeto, consulte também o [guia de notificações push](NOTIFICACOES-PUSH.md), com Firebase/FCM, testes físicos e limites operacionais. O [handoff completo](HANDOFF-COMPLETO.md), o [registro do APK 17 / VFX-09](BUILD-17.md) e o [registro do build 19](BUILD-19.md) são históricos e permanecem como referência. Compare sempre a versão local com o histórico do EAS antes de um novo envio.
 
@@ -142,14 +142,14 @@ Não compre plano/créditos nem envie uma compilação que gere cobrança adicio
 
 ## 7. Atualizar a versão Android
 
-O build 26 já enviado usa estes valores em `app.json` (registro da entrega, não instrução para reenviá-la):
+O build 27 já enviado usa estes valores em `app.json` (registro da entrega, não instrução para reenviá-la):
 
 ```json
 {
   "expo": {
     "version": "1.0.1",
     "android": {
-      "versionCode": 26
+      "versionCode": 27
     }
   }
 }
@@ -158,7 +158,7 @@ O build 26 já enviado usa estes valores em `app.json` (registro da entrega, nã
 - `version`: versão visível ao consumidor.
 - `android.versionCode`: número interno inteiro, sempre maior que o build anterior.
 
-Antes da próxima atualização, aumente o `versionCode` para um número ainda não enviado e maior que o anterior; depois do `26`, seria `27` se o histórico do EAS não tiver avançado; a fonte local permanece em `26`, o último número enviado. O perfil `preview` não incrementa automaticamente; não reenvie o número de um build em andamento por engano.
+Antes da próxima atualização, aumente o `versionCode` para um número ainda não enviado e maior que o anterior; depois do `27`, seria `28` se o histórico do EAS não tiver avançado; a fonte local permanece em `27`, o último número enviado. O perfil `preview` não incrementa automaticamente; não reenvie o número de um build em andamento por engano.
 
 ## 8. Gerar APK para instalação direta
 
