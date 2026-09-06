@@ -1,5 +1,7 @@
 # Games Usados — arquitetura e operação
 
+**Revisão posterior ao APK 27:** veja [a nova experiência, testes, prévias e limites](GAMES-USADOS-UX.md). Essa revisão ainda requer novo APK e validação física; não aparece no APK 27 já compilado.
+
 ## Objetivo
 
 Games Usados é um marketplace entre clientes autenticados do aplicativo. Ele foi desenvolvido na branch `feature/appgamesusados-marketplace` para não misturar o trabalho com a linha principal.

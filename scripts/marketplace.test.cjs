@@ -9,7 +9,7 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 test('marketplace is isolated and reachable from the consumer app',()=>{
   const app=read('App.tsx'),api=read('src/api.ts'),schema=read('server/marketplace/schema.sql');
   assert.match(app,/type Tab = [^;]+"marketplace"/);
-  assert.match(app,/<Marketplace \/>/);
+  assert.match(app,/<Marketplace onExit=/);
   assert.match(app,/Games Usados/);
   assert.match(api,/\/marketplace\/products/);
   assert.match(schema,/USE `u214656250_appgamesusados`/);

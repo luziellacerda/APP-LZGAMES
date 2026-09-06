@@ -467,7 +467,13 @@ function AppContent() {
     );
 
   const firstName = data?.user.name.split(" ")[0] ?? "Cliente";
-  const menuTab = tab === "cashback" ? "conta" : tab === "marketplace" ? "inicio" : tab;
+  if (tab === "marketplace") return (
+    <SafeAreaView style={{flex:1,backgroundColor:"#0b1018"}}>
+      <StatusBar style="light" />
+      <Marketplace onExit={() => setTab("inicio")} />
+    </SafeAreaView>
+  );
+  const menuTab = tab === "cashback" ? "conta" : tab;
   const cashbackEntry=(location:string)=>(
     <NeonCard testID={`referral-entry-${location}`} color="#ffd66b" radius={16} style={s.referralEntry}
       accessibilityRole="button" accessibilityLabel="Indique e ganhe cashback. Ver indicações e compartilhar convite."
@@ -691,14 +697,6 @@ function AppContent() {
               <Text style={s.referralBackText}>← VOLTAR PARA O INÍCIO</Text>
             </Pressable>
             <ReferralRewards refreshKey={data} />
-          </>
-        )}
-        {tab === "marketplace" && (
-          <>
-            <Pressable accessibilityRole="button" accessibilityLabel="Voltar para o início" onPress={()=>setTab("inicio")} style={s.referralBack}>
-              <Text style={s.marketplaceBackText}>← VOLTAR PARA O INÍCIO</Text>
-            </Pressable>
-            <Marketplace />
           </>
         )}
         {tab === "conta" && (

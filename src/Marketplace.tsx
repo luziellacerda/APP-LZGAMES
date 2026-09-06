@@ -1,159 +1,2908 @@
-import * as ImagePicker from 'expo-image-picker';
-import {useVideoPlayer,VideoView} from 'expo-video';
-import React,{useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,Image,Linking,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import * as ImagePicker from "expo-image-picker";
+import { useVideoPlayer, VideoView } from "expo-video";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  MarketplaceOrder,MarketplaceProduct,MarketplaceUploadAsset,changeMarketplaceOrder,changeMarketplaceProductStatus,
-  createMarketplaceProduct,loadMarketplace,loadMarketplaceOrders,loadMyMarketplaceProducts,reportMarketplaceProduct,requestMarketplacePurchase,
-} from './api';
-import {NeonCard} from './effects/Neon';
+  ActivityIndicator,
+  Alert,
+  AppState,
+  BackHandler,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar as NativeStatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import {
+  MarketplaceOrder,
+  MarketplaceProduct,
+  changeMarketplaceOrder,
+  changeMarketplaceProductStatus,
+  createMarketplaceProduct,
+  loadMarketplace,
+  loadMarketplaceOrders,
+  loadMarketplaceProduct,
+  loadMyMarketplaceProducts,
+  reportMarketplaceProduct,
+  requestMarketplacePurchase,
+} from "./api";
+import {
+  createCatalogController,
+  parseMarketplacePrice,
+} from "./marketplace/catalog";
 
-type Section='catalog'|'sell'|'mine'|'orders';
-const CATEGORIES=[
-  ['','Todos'],['consoles','Consoles'],['jogos','Jogos'],['controles','Controles'],['acessorios','Acessórios'],
-  ['computadores','Computadores'],['componentes','Componentes'],['colecionaveis','Colecionáveis'],['outros','Outros'],
+type Section = "catalog" | "sell" | "mine" | "orders";
+const C = {
+  bg: "#0b1018",
+  surface: "#141c28",
+  raised: "#1c2838",
+  line: "#2a394c",
+  text: "#f4f7fc",
+  muted: "#a9b8ca",
+  dim: "#8295ab",
+  accent: "#92e8e1",
+  gold: "#f4d795",
+  danger: "#ffada8",
+};
+const CATEGORIES = [
+  ["", "Todos"],
+  ["consoles", "Consoles"],
+  ["jogos", "Jogos"],
+  ["controles", "Controles"],
+  ["acessorios", "Acessórios"],
+  ["computadores", "Computadores"],
+  ["componentes", "Componentes"],
+  ["colecionaveis", "Colecionáveis"],
+  ["outros", "Outros"],
 ] as const;
-const CONDITIONS=[['used_like_new','Como novo'],['used_good','Bom estado'],['used_fair','Marcas de uso']] as const;
-const STATUS:Record<string,string>={active:'ATIVO',paused:'PAUSADO',reserved:'RESERVADO',sold:'VENDIDO',closed:'ENCERRADO',requested:'SOLICITADO',accepted:'ACEITO',rejected:'RECUSADO',cancelled:'CANCELADO',completed:'CONCLUÍDO'};
-const price=(cents:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(cents/100);
-const conditionLabel=(value:string)=>CONDITIONS.find(item=>item[0]===value)?.[1]??'Usado';
-const categoryLabel=(value:string)=>CATEGORIES.find(item=>item[0]===value)?.[1]??'Outros';
-const errorText=(error:unknown)=>error instanceof Error?error.message:'Não foi possível concluir a operação.';
+const CONDITIONS = [
+  ["used_like_new", "Como novo"],
+  ["used_good", "Bom estado"],
+  ["used_fair", "Marcas de uso"],
+] as const;
+const STATUS: Record<string, string> = {
+  active: "À venda",
+  paused: "Pausado",
+  reserved: "Reservado",
+  sold: "Vendido",
+  closed: "Encerrado",
+  requested: "Aguardando vendedor",
+  accepted: "Reserva aceita",
+  rejected: "Recusada",
+  cancelled: "Cancelada",
+  completed: "Concluída",
+};
+const price = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    cents / 100,
+  );
+const label = (list: readonly (readonly [string, string])[], value: string) =>
+  list.find((item) => item[0] === value)?.[1] ?? value;
+const errorText = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : "Não foi possível concluir. Tente novamente.";
 
-function ProductVideo({uri}:{uri:string}){
-  const player=useVideoPlayer(uri,current=>{current.loop=true;});
-  return <VideoView player={player} nativeControls contentFit="contain" style={s.detailVideo}/>;
+function Action({
+  title,
+  onPress,
+  busy = false,
+  disabled = false,
+  secondary = false,
+  testID,
+}: {
+  title: string;
+  onPress: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+  secondary?: boolean;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || busy, busy }}
+      disabled={disabled || busy}
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.button,
+        secondary && s.buttonSecondary,
+        (disabled || busy) && s.disabled,
+        pressed && s.pressed,
+      ]}
+    >
+      {busy ? <ActivityIndicator color={secondary ? C.accent : C.bg} /> : null}
+      <Text style={[s.buttonText, secondary && s.buttonSecondaryText]}>
+        {title}
+      </Text>
+    </Pressable>
+  );
 }
-
-function Empty({children}:{children:string}){
-  return <View style={s.empty}><Text style={s.emptyIcon}>◇</Text><Text style={s.emptyText}>{children}</Text></View>;
+function IconButton({
+  label: accessibleLabel,
+  glyph,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  glyph: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibleLabel}
+      disabled={disabled}
+      style={({ pressed }) => [
+        s.iconButton,
+        disabled && s.disabled,
+        pressed && s.pressed,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={s.iconGlyph}>{glyph}</Text>
+    </Pressable>
+  );
 }
-
-function StatusPill({value}:{value:string}){
-  return <View style={[s.statusPill,value==='active'||value==='completed'?s.statusGood:value==='reserved'||value==='requested'?s.statusWarn:s.statusMuted]}><Text style={s.statusText}>{STATUS[value]??value.toUpperCase()}</Text></View>;
-}
-
-function ProductCard({product,onPress}:{product:MarketplaceProduct;onPress:()=>void}){
-  const cover=product.media.find(item=>item.kind==='image')?.url;
-  return <NeonCard color="#70d8ff" radius={16} style={s.productCard} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${product.title}, ${price(product.priceCents)}`}>
-    {cover?<Image source={{uri:cover}} style={s.productImage}/>:<View style={[s.productImage,s.noImage]}><Text style={s.noImageText}>LZ</Text></View>}
-    <View style={s.productBody}>
-      <View style={s.productMetaRow}><Text style={s.productCategory}>{categoryLabel(product.category).toUpperCase()}</Text>{product.isMine?<Text style={s.mineTag}>SEU ANÚNCIO</Text>:null}</View>
-      <Text numberOfLines={2} style={s.productTitle}>{product.title}</Text>
-      <Text style={s.productPrice}>{price(product.priceCents)}</Text>
-      <Text numberOfLines={1} style={s.productMeta}>{conditionLabel(product.condition)} · {product.city}/{product.state}</Text>
+function Notice({
+  text,
+  error = false,
+  onRetry,
+}: {
+  text: string;
+  error?: boolean;
+  onRetry?: () => void;
+}) {
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[s.notice, error && s.noticeError]}
+    >
+      <Text style={[s.noticeText, error && s.errorText]}>{text}</Text>
+      {onRetry ? (
+        <Action title="Tentar novamente" secondary onPress={onRetry} />
+      ) : null}
     </View>
-  </NeonCard>;
+  );
 }
-
-function Catalog({onSelect}:{onSelect:(product:MarketplaceProduct)=>void}){
-  const [query,setQuery]=useState(''),[category,setCategory]=useState(''),[products,setProducts]=useState<MarketplaceProduct[]>([]);
-  const [loading,setLoading]=useState(true),[message,setMessage]=useState('');
-  const refresh=async()=>{setLoading(true);setMessage('');try{setProducts((await loadMarketplace({query,category})).products);}catch(error){setMessage(errorText(error));}finally{setLoading(false);}};
-  useEffect(()=>{const timer=setTimeout(()=>void refresh(),query?450:0);return()=>clearTimeout(timer);},[query,category]);
-  return <View style={s.section}>
-    <Text style={s.sectionTitle}>Games Usados</Text><Text style={s.sectionText}>Compre de clientes cadastrados e venda seus produtos com segurança.</Text>
-    <View style={s.searchRow}><TextInput value={query} onChangeText={setQuery} style={s.search} placeholder="Buscar console, jogo, controle..." placeholderTextColor="#667c86" returnKeyType="search" onSubmitEditing={refresh}/><Pressable style={s.searchButton} onPress={refresh}><Text style={s.searchButtonText}>⌕</Text></Pressable></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>{CATEGORIES.map(item=><Pressable key={item[0]||'all'} style={[s.chip,category===item[0]&&s.chipOn]} onPress={()=>setCategory(item[0])}><Text style={[s.chipText,category===item[0]&&s.chipTextOn]}>{item[1]}</Text></Pressable>)}</ScrollView>
-    {message?<Text style={s.error}>{message}</Text>:null}
-    {loading?<ActivityIndicator color="#70d8ff" style={s.loader}/>:products.length?products.map(product=><ProductCard key={product.id} product={product} onPress={()=>onSelect(product)}/>):<Empty>Nenhum produto encontrado com estes filtros.</Empty>}
-  </View>;
-}
-
-function ProductDetails({product,onBack,onChanged}:{product:MarketplaceProduct;onBack:()=>void;onChanged:()=>void}){
-  const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
-  const images=product.media.filter(item=>item.kind==='image'),video=product.media.find(item=>item.kind==='video');
-  const buy=()=>Alert.alert('Reservar produto',`Deseja reservar “${product.title}” por ${price(product.priceCents)}? A reserva vale por 24 horas.`,[{text:'Agora não',style:'cancel'},{text:'RESERVAR',onPress:async()=>{
-    setBusy(true);setMessage('');try{const order=await requestMarketplacePurchase(product.id);setMessage(`Reserva ${order.publicCode} criada.`);onChanged();if(order.seller?.whatsapp){const text=encodeURIComponent(`Olá, ${order.seller.name}! Tenho interesse no produto “${product.title}” anunciado no Games Usados da LZ-GAMES. Minha reserva é ${order.publicCode}.`);Alert.alert('Produto reservado','O item saiu temporariamente do catálogo. Fale com o vendedor para combinar pagamento e entrega.',[{text:'DEPOIS'},{text:'ABRIR WHATSAPP',onPress:()=>Linking.openURL(`https://wa.me/${order.seller!.whatsapp}?text=${text}`)}]);}}
-    catch(error){setMessage(errorText(error));}finally{setBusy(false);}
-  }}]);
-  const report=()=>Alert.alert('Denunciar anúncio','Informe a LZ-GAMES se este anúncio tiver informação incorreta ou conteúdo inadequado.',[{text:'Cancelar',style:'cancel'},{text:'DENUNCIAR',style:'destructive',onPress:async()=>{setBusy(true);try{await reportMarketplaceProduct(product.id);setMessage('Denúncia registrada para análise.');}catch(error){setMessage(errorText(error));}finally{setBusy(false);}}}]);
-  return <View style={s.section}>
-    <Pressable onPress={onBack} style={s.back}><Text style={s.backText}>← VOLTAR AO CATÁLOGO</Text></Pressable>
-    <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={s.gallery}>{images.map(item=><Image key={item.id} source={{uri:item.url}} resizeMode="contain" style={s.detailImage}/>)}</ScrollView>
-    {video?<View style={s.videoBox}><Text style={s.videoLabel}>VÍDEO DO PRODUTO · ATÉ 30 SEGUNDOS</Text><ProductVideo uri={video.url}/></View>:null}
-    <View style={s.detailBody}><View style={s.detailHeading}><Text style={s.productCategory}>{categoryLabel(product.category).toUpperCase()}</Text><StatusPill value={product.status}/></View>
-      <Text style={s.detailTitle}>{product.title}</Text><Text style={s.detailPrice}>{price(product.priceCents)}</Text>
-      <Text style={s.detailMeta}>{conditionLabel(product.condition)} · {product.city}/{product.state}</Text>
-      <View style={s.rule}/><Text style={s.detailLabel}>DESCRIÇÃO</Text><Text style={s.description}>{product.description}</Text>
-      <View style={s.sellerBox}><Text style={s.detailLabel}>VENDEDOR CADASTRADO</Text><Text style={s.sellerName}>{product.seller.name}</Text><Text style={s.privacy}>O WhatsApp só é liberado após a reserva.</Text></View>
-      {message?<Text style={s.message}>{message}</Text>:null}
-      {!product.isMine&&product.status==='active'?<Pressable disabled={busy} onPress={buy} style={s.buyButton}>{busy?<ActivityIndicator color="#03130d"/>:<Text style={s.buyText}>RESERVAR E FALAR COM O VENDEDOR</Text>}</Pressable>:null}
-      {!product.isMine?<Pressable disabled={busy} onPress={report} style={s.reportButton}><Text style={s.reportText}>DENUNCIAR ANÚNCIO</Text></Pressable>:null}
+function Empty({
+  title,
+  text,
+  action,
+  onPress,
+}: {
+  title: string;
+  text: string;
+  action?: string;
+  onPress?: () => void;
+}) {
+  return (
+    <View style={s.empty}>
+      <View style={s.emptyArt}>
+        <View style={s.emptyBox} />
+        <View style={s.emptySpark} />
+      </View>
+      <Text style={s.emptyTitle}>{title}</Text>
+      <Text style={s.emptyText}>{text}</Text>
+      {action && onPress ? (
+        <Action title={action} secondary onPress={onPress} />
+      ) : null}
     </View>
-  </View>;
+  );
 }
-
-function SellerForm({onCreated}:{onCreated:()=>void}){
-  const [title,setTitle]=useState(''),[description,setDescription]=useState(''),[category,setCategory]=useState('jogos'),[condition,setCondition]=useState('used_good');
-  const [priceInput,setPriceInput]=useState(''),[city,setCity]=useState('Maceió'),[state,setState]=useState('AL');
-  const [photos,setPhotos]=useState<ImagePicker.ImagePickerAsset[]>([]),[video,setVideo]=useState<ImagePicker.ImagePickerAsset|null>(null);
-  const [terms,setTerms]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
-  const pickPhotos=async()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsMultipleSelection:true,selectionLimit:5-photos.length,orderedSelection:true,quality:.9});if(!result.canceled)setPhotos(current=>[...current,...result.assets].slice(0,5));};
-  const pickVideo=async()=>{const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['videos'],allowsMultipleSelection:false,quality:1,videoMaxDuration:30});if(result.canceled)return;const selected=result.assets[0];if(!selected)return;if(selected.duration&&selected.duration>30750){setMessage('Escolha um vídeo de no máximo 30 segundos.');return;}setVideo(selected);setMessage('');};
-  const cents=useMemo(()=>{const raw=priceInput.trim().replace(/\s/g,'').replace(/^R\$/i,'');if(!raw)return 0;const normalized=raw.includes(',')?raw.replace(/\./g,'').replace(',','.') : raw;const number=Number(normalized);return Number.isFinite(number)?Math.round(number*100):0;},[priceInput]);
-  const publish=async()=>{
-    if(title.trim().length<3)return setMessage('Informe um título claro para o produto.');
-    if(description.trim().length<10)return setMessage('Descreva o produto e seu estado com pelo menos 10 caracteres.');
-    if(cents<100)return setMessage('Informe um preço válido, a partir de R$ 1,00.');
-    if(!photos.length)return setMessage('Adicione ao menos uma foto real do produto.');
-    if(!city.trim()||!/^[A-Za-z]{2}$/.test(state.trim()))return setMessage('Informe cidade e UF.');
-    if(!terms)return setMessage('Confirme que o produto é seu e que as informações são verdadeiras.');
-    setBusy(true);setMessage('Comprimindo e publicando as mídias…');
-    try{
-      await createMarketplaceProduct({title:title.trim(),description:description.trim(),category,condition,priceCents:cents,city:city.trim(),state:state.trim().toUpperCase(),photos:photos.map(asset=>asset as MarketplaceUploadAsset),video:video as MarketplaceUploadAsset|null});
-      setMessage('Anúncio publicado com sucesso.');setTitle('');setDescription('');setPriceInput('');setPhotos([]);setVideo(null);setTerms(false);onCreated();
-    }catch(error){setMessage(errorText(error));}finally{setBusy(false);}
+function StatusPill({ value }: { value: string }) {
+  return (
+    <View
+      style={[
+        s.pill,
+        ["active", "completed"].includes(value)
+          ? s.pillGood
+          : ["reserved", "requested", "accepted"].includes(value)
+            ? s.pillWarm
+            : s.pillNeutral,
+      ]}
+    >
+      <Text style={s.pillText}>{STATUS[value] ?? "Indisponível"}</Text>
+    </View>
+  );
+}
+function ProductImage({
+  uri,
+  style,
+  contain = false,
+}: {
+  uri?: string;
+  style?: any;
+  contain?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+  if (!uri || failed)
+    return (
+      <View style={[s.imageFallback, style]}>
+        <Text style={s.imageFallbackBrand}>LZ / GAMES</Text>
+        <Text style={s.caption}>Foto indisponível</Text>
+      </View>
+    );
+  return (
+    <Image
+      accessible={false}
+      source={{ uri }}
+      style={style}
+      resizeMode={contain ? "contain" : "cover"}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+function ProductCard({
+  product,
+  onPress,
+  compact = false,
+}: {
+  product: MarketplaceProduct;
+  onPress: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        product.title + ", " + price(product.priceCents) + ", " + product.city
+      }
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.product,
+        compact && s.productCompact,
+        pressed && s.pressed,
+      ]}
+    >
+      <View style={compact ? s.compactMedia : s.productMedia}>
+        <ProductImage
+          uri={product.media.find((item) => item.kind === "image")?.url}
+          style={s.fill}
+        />
+        {!compact && product.media.some((item) => item.kind === "video") ? (
+          <View style={s.videoBadge}>
+            <Text style={s.videoBadgeText}>▶ Vídeo</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={s.productCopy}>
+        <Text style={s.productCategory}>
+          {product.isMine ? "Seu anúncio" : label(CATEGORIES, product.category)}
+        </Text>
+        <Text numberOfLines={2} style={s.productTitle}>
+          {product.title}
+        </Text>
+        <Text style={s.productPrice}>{price(product.priceCents)}</Text>
+        <Text numberOfLines={1} style={s.caption}>
+          {label(CONDITIONS, product.condition)}
+        </Text>
+        <Text numberOfLines={1} style={s.caption}>
+          {product.city + " · " + product.state}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+function FilterSheet({
+  visible,
+  onClose,
+  category,
+  condition,
+  onApply,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  category: string;
+  condition: string;
+  onApply: (category: string, condition: string) => void;
+}) {
+  const [cat, setCat] = useState(category),
+    [cond, setCond] = useState(condition);
+  useEffect(() => {
+    if (visible) {
+      setCat(category);
+      setCond(condition);
+    }
+  }, [visible, category, condition]);
+  return (
+    <Modal
+      transparent
+      animationType="slide"
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={s.modalShade}>
+        <Pressable
+          accessibilityLabel="Fechar filtros"
+          onPress={onClose}
+          style={s.modalBackdrop}
+        />
+        <View accessibilityViewIsModal style={s.sheet}>
+          <View style={s.sheetHandle} />
+          <View style={s.sheetHeading}>
+            <Text style={[s.title, s.flex]}>Encontre seu próximo game</Text>
+            <IconButton label="Fechar filtros" glyph="×" onPress={onClose} />
+          </View>
+          <ScrollView contentContainerStyle={s.sheetContent}>
+            <Text style={s.fieldLabel}>Categoria</Text>
+            <View style={s.wrap}>
+              {CATEGORIES.map(([id, title]) => (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: cat === id }}
+                  key={id}
+                  style={[s.chip, cat === id && s.chipActive]}
+                  onPress={() => setCat(id)}
+                >
+                  <Text style={[s.chipText, cat === id && s.chipTextActive]}>
+                    {title}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={s.fieldLabel}>Conservação</Text>
+            <View style={s.wrap}>
+              {[["", "Qualquer estado"], ...CONDITIONS].map(([id, title]) => (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: cond === id }}
+                  key={id}
+                  style={[s.chip, cond === id && s.chipActive]}
+                  onPress={() => setCond(id)}
+                >
+                  <Text style={[s.chipText, cond === id && s.chipTextActive]}>
+                    {title}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={s.bodyMuted}>
+              Os anúncios mais recentes aparecem primeiro.
+            </Text>
+          </ScrollView>
+          <View style={s.sheetActions}>
+            <Action
+              title="Limpar"
+              secondary
+              onPress={() => {
+                setCat("");
+                setCond("");
+              }}
+            />
+            <View style={s.flex}>
+              <Action
+                title="Ver resultados"
+                onPress={() => onApply(cat, cond)}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+function Catalog({
+  onSelect,
+  onSell,
+}: {
+  onSelect: (product: MarketplaceProduct) => void;
+  onSell: () => void;
+}) {
+  const { width, fontScale } = useWindowDimensions();
+  const columns = width < 300 || fontScale > 1.4 ? 1 : 2;
+  const [query, setQuery] = useState(""),
+    [category, setCategory] = useState(""),
+    [condition, setCondition] = useState(""),
+    [filtersOpen, setFiltersOpen] = useState(false);
+  const controllerRef = useRef<ReturnType<
+    typeof createCatalogController
+  > | null>(null);
+  const [data, setData] = useState({
+    products: [] as MarketplaceProduct[],
+    nextCursor: null as string | null,
+    loading: true,
+    loadingMore: false,
+    error: "",
+  });
+  const list = useRef<FlatList<MarketplaceProduct>>(null);
+  useEffect(() => {
+    const controller = createCatalogController(loadMarketplace);
+    controllerRef.current = controller;
+    const unsubscribe = controller.subscribe(setData);
+    return () => {
+      unsubscribe();
+      controller.dispose();
+      controllerRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    controllerRef.current?.invalidate();
+    const timer = setTimeout(
+      () => {
+        list.current?.scrollToOffset({ offset: 0, animated: false });
+        void controllerRef.current?.search({ query, category, condition });
+      },
+      query ? 400 : 0,
+    );
+    return () => clearTimeout(timer);
+  }, [query, category, condition]);
+  const clear = () => {
+    setQuery("");
+    setCategory("");
+    setCondition("");
   };
-  return <View style={s.section}><Text style={s.sectionTitle}>Vender produto</Text><Text style={s.sectionText}>As fotos e o vídeo serão comprimidos no servidor para deixar o aplicativo leve.</Text>
-    <Text style={s.label}>TÍTULO</Text><TextInput maxLength={80} style={s.input} value={title} onChangeText={setTitle} placeholder="Ex.: PlayStation 5 com dois controles" placeholderTextColor="#667c86"/>
-    <Text style={s.label}>DESCRIÇÃO E ESTADO REAL</Text><TextInput maxLength={2000} multiline textAlignVertical="top" style={[s.input,s.textarea]} value={description} onChangeText={setDescription} placeholder="Conte o tempo de uso, defeitos, acessórios e o que acompanha." placeholderTextColor="#667c86"/>
-    <Text style={s.label}>CATEGORIA</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>{CATEGORIES.slice(1).map(item=><Pressable key={item[0]} style={[s.chip,category===item[0]&&s.chipOn]} onPress={()=>setCategory(item[0])}><Text style={[s.chipText,category===item[0]&&s.chipTextOn]}>{item[1]}</Text></Pressable>)}</ScrollView>
-    <Text style={s.label}>CONSERVAÇÃO</Text><View style={s.optionRow}>{CONDITIONS.map(item=><Pressable key={item[0]} style={[s.option,condition===item[0]&&s.optionOn]} onPress={()=>setCondition(item[0])}><Text style={[s.optionText,condition===item[0]&&s.optionTextOn]}>{item[1]}</Text></Pressable>)}</View>
-    <View style={s.twoColumns}><View style={s.column}><Text style={s.label}>PREÇO</Text><TextInput keyboardType="decimal-pad" style={s.input} value={priceInput} onChangeText={setPriceInput} placeholder="Ex.: 1.899,90" placeholderTextColor="#667c86"/></View><View style={s.ufColumn}><Text style={s.label}>UF</Text><TextInput autoCapitalize="characters" maxLength={2} style={s.input} value={state} onChangeText={setState} placeholder="AL" placeholderTextColor="#667c86"/></View></View>
-    <Text style={s.label}>CIDADE</Text><TextInput maxLength={80} style={s.input} value={city} onChangeText={setCity} placeholder="Cidade" placeholderTextColor="#667c86"/>
-    <Text style={s.label}>FOTOS · {photos.length}/5</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.mediaRow}>{photos.map((asset,index)=><View key={`${asset.assetId??asset.uri}-${index}`} style={s.previewBox}><Image source={{uri:asset.uri}} style={s.preview}/><Pressable accessibilityLabel={`Remover foto ${index+1}`} style={s.remove} onPress={()=>setPhotos(current=>current.filter((_,i)=>i!==index))}><Text style={s.removeText}>×</Text></Pressable></View>)}{photos.length<5?<Pressable onPress={pickPhotos} style={s.addMedia}><Text style={s.addMediaIcon}>＋</Text><Text style={s.addMediaText}>ADICIONAR</Text></Pressable>:null}</ScrollView>
-    <Text style={s.label}>VÍDEO OPCIONAL · MÁXIMO 30 SEGUNDOS</Text>{video?<View style={s.videoSelected}><Text numberOfLines={1} style={s.videoSelectedText}>▶ {video.fileName||'Vídeo selecionado'}</Text><Pressable onPress={()=>setVideo(null)}><Text style={s.removeVideo}>REMOVER</Text></Pressable></View>:<Pressable onPress={pickVideo} style={s.videoPicker}><Text style={s.videoPickerText}>SELECIONAR VÍDEO CURTO</Text></Pressable>}
-    <Pressable onPress={()=>setTerms(value=>!value)} style={s.termsRow}><View style={[s.checkbox,terms&&s.checkboxOn]}><Text style={s.check}>{terms?'✓':''}</Text></View><Text style={s.termsText}>Confirmo que o produto é meu, é permitido por lei e que preço, fotos e descrição são verdadeiros.</Text></Pressable>
-    {message?<Text style={s.message}>{message}</Text>:null}<Pressable disabled={busy} onPress={publish} style={[s.publish,busy&&s.disabledButton]}>{busy?<ActivityIndicator color="#04130d"/>:<Text style={s.publishText}>PUBLICAR PRODUTO</Text>}</Pressable>
-  </View>;
+  const filtered = !!(query || category || condition);
+  const header = (
+    <View style={s.catalogHeader}>
+      {!filtered && width >= 360 && fontScale <= 1.4 ? (
+        <View style={s.hero}>
+          <View style={s.heroCopy}>
+            <Text style={s.eyebrow}>GAMES COM NOVAS HISTÓRIAS</Text>
+            <Text style={s.heroTitle}>Seu próximo{"\n"}upgrade.</Text>
+            <Text style={s.heroText}>Encontre. Negocie. Jogue.</Text>
+          </View>
+          <View accessible={false} pointerEvents="none" style={s.controllerArt}>
+            <View style={s.orbit} />
+            <View style={s.controllerBody}>
+              <View style={s.dpadH} />
+              <View style={s.dpadV} />
+              <View style={s.padDot1} />
+              <View style={s.padDot2} />
+              <View style={s.padStick1} />
+              <View style={s.padStick2} />
+            </View>
+            <View style={s.artTag}>
+              <Text style={s.artTagText}>PLAYER TO PLAYER</Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+      <View style={s.rowBetween}>
+        <Text style={s.subtitle}>
+          {filtered ? "Resultados da busca" : "Explore a comunidade"}
+        </Text>
+        <Text style={s.caption}>Mais recentes</Text>
+      </View>
+      {data.products.length ? (
+        <Text accessibilityLiveRegion="polite" style={s.caption}>
+          {data.products.length + " anúncio(s) carregado(s)"}
+        </Text>
+      ) : null}
+      {data.error ? (
+        <Notice
+          text={data.error}
+          error
+          onRetry={() => void controllerRef.current?.refresh()}
+        />
+      ) : null}
+    </View>
+  );
+  return (
+    <View style={s.flex}>
+      <View style={s.searchArea}>
+        <View style={s.searchBox}>
+          <Text style={s.searchGlyph}>⌕</Text>
+          <TextInput
+            accessibilityLabel="Buscar produtos"
+            maxLength={80}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="O que você quer jogar?"
+            placeholderTextColor={C.dim}
+            style={s.searchInput}
+            returnKeyType="search"
+          />
+          {query ? (
+            <IconButton
+              label="Limpar pesquisa"
+              glyph="×"
+              onPress={() => setQuery("")}
+            />
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Abrir filtros"
+            onPress={() => setFiltersOpen(true)}
+            style={s.filterButton}
+          >
+            <Text style={s.filterText}>
+              {condition ? "Filtros •" : "Filtros"}
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.quickCategories}
+        >
+          {CATEGORIES.slice(0, 5).map(([id, title]) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: category === id }}
+              key={id}
+              onPress={() => setCategory(id)}
+              style={[s.categoryTab, category === id && s.categoryTabOn]}
+            >
+              <Text
+                style={[s.categoryText, category === id && s.categoryTextOn]}
+              >
+                {title}
+              </Text>
+            </Pressable>
+          ))}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setFiltersOpen(true)}
+            style={s.categoryTab}
+          >
+            <Text style={s.categoryText}>Mais +</Text>
+          </Pressable>
+        </ScrollView>
+        {condition ||
+        !CATEGORIES.slice(0, 5).some((item) => item[0] === category) ? (
+          <Pressable
+            accessibilityRole="button"
+            style={s.appliedFilters}
+            onPress={clear}
+          >
+            <Text style={s.caption}>
+              {[
+                category ? label(CATEGORIES, category) : "",
+                condition ? label(CONDITIONS, condition) : "",
+              ]
+                .filter(Boolean)
+                .join(" · ") + "  × Limpar"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <FlatList
+        key={columns}
+        ref={list}
+        testID="marketplace-catalog"
+        data={data.products}
+        numColumns={columns}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={[s.gridItem, columns > 1 && { maxWidth: "48.5%" }]}>
+            <ProductCard product={item} onPress={() => onSelect(item)} />
+          </View>
+        )}
+        columnWrapperStyle={columns > 1 ? s.gridRow : undefined}
+        contentContainerStyle={s.catalogContent}
+        ListHeaderComponent={header}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        refreshControl={
+          <RefreshControl
+            refreshing={data.loading}
+            onRefresh={() => void controllerRef.current?.refresh()}
+            tintColor={C.accent}
+          />
+        }
+        ListEmptyComponent={
+          data.loading ? (
+            <View
+              accessibilityLabel="Carregando anúncios"
+              style={s.skeletonGrid}
+            >
+              {[0, 1].map((id) => (
+                <View key={id} style={s.skeletonCard}>
+                  <View style={s.skeletonPhoto} />
+                  <View style={s.skeletonLine} />
+                  <View style={[s.skeletonLine, { width: "50%" }]} />
+                </View>
+              ))}
+            </View>
+          ) : !data.error ? (
+            <Empty
+              title={
+                filtered
+                  ? "Nada por aqui, ainda."
+                  : "O próximo anúncio pode ser seu."
+              }
+              text={
+                filtered
+                  ? "Tente outro nome ou amplie os filtros para encontrar mais produtos."
+                  : "A comunidade está começando. Publique fotos reais e apresente seu produto a outros jogadores."
+              }
+              action={filtered ? "Limpar filtros" : "Criar meu anúncio"}
+              onPress={filtered ? clear : onSell}
+            />
+          ) : null
+        }
+        ListFooterComponent={
+          <View style={s.listFooter}>
+            {data.nextCursor ? (
+              <Action
+                title="Carregar mais anúncios"
+                busy={data.loadingMore}
+                secondary
+                onPress={() => void controllerRef.current?.more()}
+              />
+            ) : data.products.length ? (
+              <Text style={s.footerText}>
+                Você viu todos os resultados desta busca.
+              </Text>
+            ) : null}
+            <Text style={s.safetyCaption}>
+              Negociação direta entre clientes. Confira o produto antes de
+              pagar.
+            </Text>
+          </View>
+        }
+      />
+      <FilterSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        category={category}
+        condition={condition}
+        onApply={(cat, cond) => {
+          setCategory(cat);
+          setCondition(cond);
+          setFiltersOpen(false);
+        }}
+      />
+    </View>
+  );
+}
+function ProductVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (current) => {
+    current.loop = false;
+    current.muted = true;
+  });
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") player.pause();
+    });
+    return () => subscription.remove();
+  }, [player]);
+  return (
+    <VideoView
+      player={player}
+      nativeControls
+      contentFit="contain"
+      style={s.detailVideo}
+    />
+  );
+}
+function ProductDetails({
+  initial,
+  onBack,
+  onReserved,
+  onBusy,
+}: {
+  initial: MarketplaceProduct;
+  onBack: () => void;
+  onReserved: () => void;
+  onBusy: (busy: boolean) => void;
+}) {
+  const [product, setProduct] = useState(initial),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [feedback, setFeedback] = useState("");
+  const [busy, setBusy] = useState(false),
+    [galleryWidth, setGalleryWidth] = useState(0),
+    [photo, setPhoto] = useState(0),
+    [fullscreen, setFullscreen] = useState(false),
+    [playVideo, setPlayVideo] = useState(false);
+  const busyRef = useRef(false),
+    alive = useRef(true),
+    epoch = useRef(0);
+  const refresh = useCallback(async () => {
+    const id = ++epoch.current;
+    setLoading(true);
+    setError("");
+    try {
+      const next = await loadMarketplaceProduct(initial.id);
+      if (alive.current && id === epoch.current) setProduct(next);
+    } catch (e) {
+      if (alive.current && id === epoch.current) setError(errorText(e));
+    } finally {
+      if (alive.current && id === epoch.current) setLoading(false);
+    }
+  }, [initial.id]);
+  useEffect(() => {
+    alive.current = true;
+    void refresh();
+    return () => {
+      alive.current = false;
+      epoch.current++;
+    };
+  }, [refresh]);
+  const images = product.media.filter((item) => item.kind === "image"),
+    video = product.media.find((item) => item.kind === "video");
+  async function mutate(fn: () => Promise<void>) {
+    if (!alive.current || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    onBusy(true);
+    setFeedback("");
+    try {
+      await fn();
+    } catch (e) {
+      if (alive.current) setFeedback(errorText(e));
+    } finally {
+      busyRef.current = false;
+      onBusy(false);
+      if (alive.current) setBusy(false);
+    }
+  }
+  function buy() {
+    if (busyRef.current || loading || error) return;
+    Alert.alert(
+      "Confirmar reserva",
+      product.title +
+        "\n" +
+        price(product.priceCents) +
+        "\n\nO vendedor tem até 24 horas para aceitar. Não há cobrança no aplicativo; pagamento e entrega são combinados diretamente.",
+      [
+        { text: "Agora não", style: "cancel" },
+        {
+          text: "Confirmar reserva",
+          onPress: () =>
+            void mutate(async () => {
+              const order = await requestMarketplacePurchase(product.id);
+              Alert.alert(
+                "Reserva registrada",
+                order.publicCode +
+                  "\nAcompanhe em Negociações e fale com o vendedor para combinar os próximos passos.",
+              );
+              onReserved();
+            }),
+        },
+      ],
+    );
+  }
+  function report() {
+    Alert.alert(
+      "Denunciar anúncio",
+      "Selecione o motivo. A denúncia será registrada para análise.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Informação incorreta",
+          onPress: () =>
+            void mutate(async () => {
+              await reportMarketplaceProduct(product.id);
+              setFeedback("Denúncia registrada. Obrigado por informar.");
+            }),
+        },
+      ],
+    );
+  }
+  return (
+    <View style={s.flex}>
+      <ScrollView
+        contentContainerStyle={s.detailContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {loading ? <ActivityIndicator color={C.accent} /> : null}
+        {error ? (
+          <Notice text={error} error onRetry={() => void refresh()} />
+        ) : null}
+        <View
+          onLayout={(e) => setGalleryWidth(e.nativeEvent.layout.width)}
+          style={s.gallery}
+        >
+          {galleryWidth > 0 && images.length ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) =>
+                setPhoto(
+                  Math.max(
+                    0,
+                    Math.min(
+                      images.length - 1,
+                      Math.round(e.nativeEvent.contentOffset.x / galleryWidth),
+                    ),
+                  ),
+                )
+              }
+            >
+              {images.map((image, index) => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={"Ampliar foto " + (index + 1)}
+                  key={image.id}
+                  onPress={() => {
+                    setPhoto(index);
+                    setFullscreen(true);
+                  }}
+                >
+                  <ProductImage
+                    uri={image.url}
+                    contain
+                    style={{ width: galleryWidth, height: galleryWidth * 0.88 }}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={s.noGallery}>
+              <Text style={s.caption}>Foto indisponível</Text>
+            </View>
+          )}
+          {images.length ? (
+            <View pointerEvents="none" style={s.photoCounter}>
+              <Text style={s.photoCounterText}>
+                {photo + 1 + " / " + images.length + "  ·  Toque para ampliar"}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={s.detailCopy}>
+          <View style={s.rowBetween}>
+            <Text style={s.eyebrow}>
+              {label(CATEGORIES, product.category).toUpperCase()}
+            </Text>
+            <StatusPill value={product.status} />
+          </View>
+          <Text style={s.detailTitle}>{product.title}</Text>
+          <Text style={s.detailPrice}>{price(product.priceCents)}</Text>
+          <View style={s.wrap}>
+            <View style={s.infoChip}>
+              <Text style={s.caption}>
+                {label(CONDITIONS, product.condition)}
+              </Text>
+            </View>
+            <View style={s.infoChip}>
+              <Text style={s.caption}>
+                {product.city + " / " + product.state}
+              </Text>
+            </View>
+          </View>
+          <View style={s.divider} />
+          <Text style={s.subtitle}>Sobre o produto</Text>
+          <Text style={s.description}>{product.description}</Text>
+          {video ? (
+            <View style={s.videoPanel}>
+              {playVideo ? (
+                <ProductVideo uri={video.url} />
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Assistir vídeo do produto"
+                  style={s.videoPreview}
+                  onPress={() => setPlayVideo(true)}
+                >
+                  <ProductImage
+                    uri={video.posterUrl ?? undefined}
+                    style={s.fill}
+                  />
+                  <View style={s.videoPlay}>
+                    <Text style={s.videoPlayText}>▶</Text>
+                  </View>
+                </Pressable>
+              )}
+              <Text style={s.caption}>
+                Vídeo do vendedor · reprodução sob demanda
+              </Text>
+            </View>
+          ) : null}
+          <View style={s.seller}>
+            <View style={s.avatar}>
+              <Text style={s.avatarText}>
+                {product.seller.name.trim().charAt(0).toUpperCase() || "LZ"}
+              </Text>
+            </View>
+            <View style={s.flex}>
+              <Text style={s.caption}>Anunciado por</Text>
+              <Text style={s.sellerName}>{product.seller.name}</Text>
+              <Text style={s.caption}>
+                Cliente cadastrado · contato após reserva
+              </Text>
+            </View>
+          </View>
+          <View style={s.safety}>
+            <Text style={s.safetyTitle}>
+              Uma boa negociação começa com cuidado.
+            </Text>
+            <Text style={s.bodyMuted}>
+              Confira funcionamento, acessórios e estado real. Não pague taxas
+              de liberação nem compartilhe códigos de acesso. A LZ-GAMES não
+              retém o pagamento desta negociação.
+            </Text>
+          </View>
+          {feedback ? <Notice text={feedback} /> : null}
+          {!product.isMine ? (
+            <Action
+              title="Denunciar este anúncio"
+              secondary
+              disabled={busy}
+              onPress={report}
+            />
+          ) : null}
+        </View>
+      </ScrollView>
+      <View style={s.purchaseDock}>
+        <View style={s.flex}>
+          <Text style={s.caption}>Valor anunciado</Text>
+          <Text style={s.dockPrice}>{price(product.priceCents)}</Text>
+        </View>
+        <View style={s.flex}>
+          <Action
+            title={
+              product.isMine
+                ? "Seu anúncio"
+                : product.status === "active"
+                  ? "Reservar produto"
+                  : "Indisponível"
+            }
+            disabled={
+              product.isMine ||
+              product.status !== "active" ||
+              loading ||
+              !!error
+            }
+            busy={busy}
+            onPress={buy}
+          />
+        </View>
+      </View>
+      <Modal
+        visible={fullscreen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreen(false)}
+      >
+        <View accessibilityViewIsModal style={s.fullscreen}>
+          <View style={s.fullscreenHeader}>
+            <Text style={s.body}>{photo + 1 + " de " + images.length}</Text>
+            <IconButton
+              label="Fechar foto"
+              glyph="×"
+              onPress={() => setFullscreen(false)}
+            />
+          </View>
+          <ProductImage
+            uri={images[photo]?.url}
+            contain
+            style={s.fullscreenImage}
+          />
+          <View style={s.fullscreenControls}>
+            <IconButton
+              label="Foto anterior"
+              glyph="‹"
+              disabled={photo === 0}
+              onPress={() => setPhoto((p) => p - 1)}
+            />
+            <IconButton
+              label="Próxima foto"
+              glyph="›"
+              disabled={photo === images.length - 1}
+              onPress={() => setPhoto((p) => p + 1)}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }
 
-function MyProducts({refreshKey,onSelect}:{refreshKey:number;onSelect:(product:MarketplaceProduct)=>void}){
-  const [products,setProducts]=useState<MarketplaceProduct[]>([]),[loading,setLoading]=useState(true),[message,setMessage]=useState('');
-  const refresh=async()=>{setLoading(true);try{setProducts(await loadMyMarketplaceProducts());setMessage('');}catch(error){setMessage(errorText(error));}finally{setLoading(false);}};
-  useEffect(()=>{void refresh();},[refreshKey]);
-  const action=async(product:MarketplaceProduct,status:'active'|'paused'|'closed')=>{try{await changeMarketplaceProductStatus(product.id,status);await refresh();}catch(error){setMessage(errorText(error));}};
-  return <View style={s.section}><View style={s.headingRow}><View><Text style={s.sectionTitle}>Meus anúncios</Text><Text style={s.sectionText}>Controle o que está à venda.</Text></View><Pressable onPress={refresh}><Text style={s.refresh}>ATUALIZAR</Text></Pressable></View>{message?<Text style={s.error}>{message}</Text>:null}{loading?<ActivityIndicator color="#70d8ff" style={s.loader}/>:products.length?products.map(product=><View key={product.id}><ProductCard product={product} onPress={()=>onSelect(product)}/><View style={s.actions}><StatusPill value={product.status}/>{product.status==='active'?<Pressable onPress={()=>action(product,'paused')} style={s.secondaryButton}><Text style={s.secondaryText}>PAUSAR</Text></Pressable>:product.status==='paused'?<Pressable onPress={()=>action(product,'active')} style={s.secondaryButton}><Text style={s.secondaryText}>REATIVAR</Text></Pressable>:null}{['active','paused'].includes(product.status)?<Pressable onPress={()=>Alert.alert('Encerrar anúncio','Depois de encerrado, ele não poderá ser reativado.',[{text:'Cancelar'},{text:'ENCERRAR',style:'destructive',onPress:()=>action(product,'closed')}])} style={s.secondaryButton}><Text style={s.dangerText}>ENCERRAR</Text></Pressable>:null}</View></View>):<Empty>Você ainda não publicou produtos.</Empty>}</View>;
+function Field({
+  title,
+  children,
+  hint,
+}: {
+  title: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <View style={s.field}>
+      <Text style={s.fieldLabel}>{title}</Text>
+      {children}
+      {hint ? <Text style={s.caption}>{hint}</Text> : null}
+    </View>
+  );
+}
+function SellerForm({
+  onCreated,
+  onDirty,
+  onBusy,
+}: {
+  onCreated: () => void;
+  onDirty: (dirty: boolean) => void;
+  onBusy: (busy: boolean) => void;
+}) {
+  const [step, setStep] = useState(0),
+    [title, setTitle] = useState(""),
+    [description, setDescription] = useState(""),
+    [category, setCategory] = useState("jogos"),
+    [condition, setCondition] = useState("used_good");
+  const [priceInput, setPriceInput] = useState(""),
+    [city, setCity] = useState("Maceió"),
+    [state, setState] = useState("AL");
+  const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]),
+    [video, setVideo] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [terms, setTerms] = useState(false),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState("");
+  const busyRef = useRef(false),
+    pickerRef = useRef(false),
+    alive = useRef(true),
+    scroll = useRef<ScrollView>(null);
+  const cents = parseMarketplacePrice(priceInput),
+    dirty = !!(title || description || priceInput || photos.length || video);
+  useEffect(() => {
+    onDirty(dirty);
+  }, [dirty, onDirty]);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const go = (next: number) => {
+    setMessage("");
+    setStep(next);
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  };
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (busyRef.current) return true;
+        if (step > 0) {
+          go(step - 1);
+          return true;
+        }
+        return false;
+      },
+    );
+    return () => subscription.remove();
+  }, [step]);
+  const pick = async (kind: "photos" | "video") => {
+    if (
+      pickerRef.current ||
+      busyRef.current ||
+      (kind === "photos" && photos.length >= 5)
+    )
+      return;
+    pickerRef.current = true;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync(
+        kind === "photos"
+          ? {
+              mediaTypes: ["images"],
+              allowsMultipleSelection: true,
+              selectionLimit: 5 - photos.length,
+              orderedSelection: true,
+              quality: 0.85,
+            }
+          : {
+              mediaTypes: ["videos"],
+              allowsMultipleSelection: false,
+              videoMaxDuration: 30,
+            },
+      );
+      if (!alive.current || result.canceled) return;
+      if (kind === "photos")
+        setPhotos((current) => {
+          const seen = new Set(current.map((a) => a.assetId ?? a.uri));
+          return [
+            ...current,
+            ...result.assets.filter((a) => !seen.has(a.assetId ?? a.uri)),
+          ].slice(0, 5);
+        });
+      else {
+        const asset = result.assets[0];
+        if (!asset) return;
+        if (asset.duration && asset.duration > 30750) {
+          setMessage("Escolha um vídeo de até 30 segundos.");
+          return;
+        }
+        if (asset.fileSize && asset.fileSize > 35 * 1024 * 1024) {
+          setMessage(
+            "O vídeo original deve ter até 35 MB. Reduza a duração ou resolução e selecione novamente.",
+          );
+          return;
+        }
+        setVideo(asset);
+      }
+      setMessage("");
+    } catch (e) {
+      if (alive.current)
+        setMessage(
+          "Não foi possível abrir a galeria. Confira a permissão de fotos nas configurações do celular.",
+        );
+    } finally {
+      pickerRef.current = false;
+    }
+  };
+  const validate = () => {
+    if (step === 0) {
+      if (title.trim().length < 3)
+        return "Dê um título com pelo menos 3 caracteres.";
+      if (description.trim().length < 10)
+        return "Descreva o produto com pelo menos 10 caracteres.";
+      if (!cents) return "Informe o preço em reais, por exemplo 1.899,90.";
+      if (city.trim().length < 2 || !/^[A-Za-z]{2}$/.test(state.trim()))
+        return "Confira a cidade e a UF.";
+    }
+    if (step === 1) {
+      if (!photos.length)
+        return "Adicione pelo menos uma foto real do produto.";
+      const files = [...photos, ...(video ? [video] : [])];
+      if (
+        files.some((a) => (a.fileSize ?? 0) > 35 * 1024 * 1024) ||
+        files.reduce((sum, a) => sum + (a.fileSize ?? 0), 0) > 45 * 1024 * 1024
+      )
+        return "As mídias devem somar até 45 MB, com no máximo 35 MB por arquivo.";
+    }
+    return "";
+  };
+  const next = () => {
+    const error = validate();
+    if (error) {
+      setMessage(error);
+      return;
+    }
+    go(step + 1);
+  };
+  const publish = async () => {
+    if (busyRef.current) return;
+    if (!terms) {
+      setMessage(
+        "Confirme a responsabilidade pelas informações para publicar.",
+      );
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    onBusy(true);
+    setMessage("");
+    try {
+      await createMarketplaceProduct({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        condition,
+        priceCents: cents,
+        city: city.trim(),
+        state: state.trim().toUpperCase(),
+        photos,
+        video,
+      });
+      if (alive.current) {
+        onDirty(false);
+        Alert.alert(
+          "Seu anúncio está no ar",
+          "Você pode acompanhar a publicação em Meus anúncios.",
+        );
+        onCreated();
+      }
+    } catch (e) {
+      if (alive.current)
+        setMessage(
+          errorText(e) +
+            " Antes de reenviar após uma falha de conexão, confira Meus anúncios para evitar duplicação.",
+        );
+    } finally {
+      busyRef.current = false;
+      onBusy(false);
+      if (alive.current) setBusy(false);
+    }
+  };
+  return (
+    <KeyboardAvoidingView
+      style={s.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View style={s.steps}>
+        {["O produto", "Fotos e vídeo", "Revisão"].map((text, index) => (
+          <View key={text} style={s.step}>
+            <View style={[s.stepNumber, index <= step && s.stepNumberOn]}>
+              <Text style={[s.stepDigit, index <= step && s.stepDigitOn]}>
+                {index < step ? "✓" : index + 1}
+              </Text>
+            </View>
+            <Text style={[s.stepLabel, index === step && s.stepLabelOn]}>
+              {text}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <ScrollView
+        ref={scroll}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={s.formContent}
+      >
+        <View>
+          <Text style={s.title}>
+            {
+              [
+                "O que você quer vender?",
+                "Mostre todos os detalhes.",
+                "Tudo pronto para publicar?",
+              ][step]
+            }
+          </Text>
+          <Text style={s.bodyMuted}>
+            {
+              [
+                "Informações claras ajudam o comprador a decidir.",
+                "A primeira foto será a capa do anúncio.",
+                "Confira como seu produto será apresentado.",
+              ][step]
+            }
+          </Text>
+        </View>
+        {step === 0 ? (
+          <>
+            <Field
+              title="Título do anúncio"
+              hint={title.length + "/80 caracteres"}
+            >
+              <TextInput
+                accessibilityLabel="Título do anúncio"
+                maxLength={80}
+                style={s.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Ex.: PlayStation 5 com dois controles"
+                placeholderTextColor={C.dim}
+              />
+            </Field>
+            <Field title="Categoria">
+              <View style={s.wrap}>
+                {CATEGORIES.slice(1).map(([id, text]) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: category === id }}
+                    key={id}
+                    style={[s.chip, category === id && s.chipActive]}
+                    onPress={() => setCategory(id)}
+                  >
+                    <Text
+                      style={[s.chipText, category === id && s.chipTextActive]}
+                    >
+                      {text}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Field>
+            <Field title="Conservação">
+              <View style={s.wrap}>
+                {CONDITIONS.map(([id, text]) => (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: condition === id }}
+                    key={id}
+                    style={[s.chip, condition === id && s.chipActive]}
+                    onPress={() => setCondition(id)}
+                  >
+                    <Text
+                      style={[s.chipText, condition === id && s.chipTextActive]}
+                    >
+                      {text}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Field>
+            <Field
+              title="Descrição"
+              hint="Inclua defeitos, tempo de uso e acessórios."
+            >
+              <TextInput
+                accessibilityLabel="Descrição do produto"
+                maxLength={2000}
+                multiline
+                textAlignVertical="top"
+                style={[s.input, s.textarea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="O que acompanha? Tudo funciona? Conte o estado real."
+                placeholderTextColor={C.dim}
+              />
+            </Field>
+            <Field
+              title="Preço em reais"
+              hint="Use vírgula para centavos. Não há pagamento dentro do app."
+            >
+              <TextInput
+                accessibilityLabel="Preço em reais"
+                keyboardType="decimal-pad"
+                maxLength={14}
+                style={[s.input, s.priceInput]}
+                value={priceInput}
+                onChangeText={setPriceInput}
+                placeholder="1.899,90"
+                placeholderTextColor={C.dim}
+              />
+            </Field>
+            <View style={s.locationRow}>
+              <View style={s.flex}>
+                <Field title="Cidade">
+                  <TextInput
+                    accessibilityLabel="Cidade"
+                    maxLength={80}
+                    style={s.input}
+                    value={city}
+                    onChangeText={setCity}
+                  />
+                </Field>
+              </View>
+              <View style={s.uf}>
+                <Field title="UF">
+                  <TextInput
+                    accessibilityLabel="Estado, UF"
+                    autoCapitalize="characters"
+                    maxLength={2}
+                    style={s.input}
+                    value={state}
+                    onChangeText={setState}
+                  />
+                </Field>
+              </View>
+            </View>
+          </>
+        ) : step === 1 ? (
+          <>
+            <View style={s.rowBetween}>
+              <Text style={s.fieldLabel}>Fotos do produto</Text>
+              <Text style={s.caption}>{photos.length + " de 5"}</Text>
+            </View>
+            <View style={s.photoGrid}>
+              {photos.map((asset, index) => (
+                <View key={asset.assetId ?? asset.uri} style={s.photoTile}>
+                  <ProductImage uri={asset.uri} style={s.fill} />
+                  {index === 0 ? (
+                    <View style={s.coverBadge}>
+                      <Text style={s.videoBadgeText}>CAPA</Text>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={"Remover foto " + (index + 1)}
+                    style={s.removePhoto}
+                    onPress={() =>
+                      setPhotos((current) =>
+                        current.filter((_, i) => i !== index),
+                      )
+                    }
+                  >
+                    <Text style={s.removePhotoText}>×</Text>
+                  </Pressable>
+                  {index > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        "Usar foto " + (index + 1) + " como capa"
+                      }
+                      style={s.setCover}
+                      onPress={() =>
+                        setPhotos((current) =>
+                          current[index]
+                            ? [
+                                current[index],
+                                ...current.filter((_, i) => i !== index),
+                              ]
+                            : current,
+                        )
+                      }
+                    >
+                      <Text style={s.setCoverText}>Usar como capa</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+              {photos.length < 5 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar fotos"
+                  style={[s.photoTile, s.addPhoto]}
+                  onPress={() => void pick("photos")}
+                >
+                  <Text style={s.addPhotoGlyph}>＋</Text>
+                  <Text style={s.addPhotoText}>Adicionar foto</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <Text style={s.caption}>
+              Use boa luz. Mostre frente, traseira, conexões e possíveis marcas.
+            </Text>
+            <View style={s.divider} />
+            <Text style={s.fieldLabel}>Vídeo opcional</Text>
+            <Text style={s.bodyMuted}>
+              Até 30 segundos para mostrar o produto funcionando. Sem reprodução
+              automática no catálogo.
+            </Text>
+            {video ? (
+              <View style={s.videoSelected}>
+                <View style={s.flex}>
+                  <Text style={s.body} numberOfLines={2}>
+                    {video.fileName || "Vídeo selecionado"}
+                  </Text>
+                  <Text style={s.caption}>
+                    {video.duration
+                      ? Math.ceil(video.duration / 1000) + " segundos"
+                      : "Pronto para enviar"}
+                  </Text>
+                </View>
+                <IconButton
+                  label="Remover vídeo"
+                  glyph="×"
+                  onPress={() => setVideo(null)}
+                />
+              </View>
+            ) : (
+              <Action
+                title="Selecionar vídeo"
+                secondary
+                onPress={() => void pick("video")}
+              />
+            )}
+            <Notice text="Até 45 MB por envio, com no máximo 35 MB por arquivo. O servidor otimiza as fotos e o vídeo após receber os arquivos." />
+          </>
+        ) : (
+          <>
+            <View style={s.reviewCard}>
+              <ProductImage uri={photos[0]?.uri} style={s.reviewImage} />
+              <View style={s.productCopy}>
+                <Text style={s.productCategory}>
+                  {label(CATEGORIES, category)}
+                </Text>
+                <Text style={s.detailTitle}>{title}</Text>
+                <Text style={s.productPrice}>{price(cents)}</Text>
+                <Text style={s.caption}>
+                  {label(CONDITIONS, condition) +
+                    " · " +
+                    city +
+                    "/" +
+                    state.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+            <View style={s.reviewFacts}>
+              <Text style={s.body}>
+                {photos.length + " foto(s)" + (video ? " + 1 vídeo" : "")}
+              </Text>
+              <Text style={s.bodyMuted}>{description}</Text>
+            </View>
+            <Pressable
+              testID="marketplace-terms"
+              accessibilityRole="checkbox"
+              accessibilityLabel="Confirmo a responsabilidade pelo anúncio"
+              accessibilityState={{ checked: terms, disabled: busy }}
+              disabled={busy}
+              onPress={() => setTerms((value) => !value)}
+              style={s.terms}
+            >
+              <View style={[s.checkbox, terms && s.checkboxOn]}>
+                <Text style={s.checkText}>{terms ? "✓" : ""}</Text>
+              </View>
+              <Text style={s.termsText}>
+                O produto é meu, sua venda é permitida e as fotos, o preço e a
+                descrição são verdadeiros.
+              </Text>
+            </Pressable>
+            <Notice text="A reserva não é um pagamento. Você combina pagamento e entrega diretamente com o comprador." />
+          </>
+        )}
+        {message ? <Notice text={message} error /> : null}
+        {busy ? (
+          <Notice text="Enviando e processando as mídias. Mantenha o aplicativo aberto até receber a confirmação." />
+        ) : null}
+      </ScrollView>
+      <View style={s.formDock}>
+        {step > 0 ? (
+          <Action
+            title="Voltar"
+            secondary
+            disabled={busy}
+            onPress={() => go(step - 1)}
+          />
+        ) : null}
+        <View style={s.flex}>
+          <Action
+            testID="marketplace-form-next"
+            title={
+              step === 2
+                ? busy
+                  ? "Publicando…"
+                  : "Publicar anúncio"
+                : "Continuar"
+            }
+            busy={busy}
+            onPress={step === 2 ? () => void publish() : next}
+          />
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
 }
 
-function Orders({refreshKey}:{refreshKey:number}){
-  const [orders,setOrders]=useState<MarketplaceOrder[]>([]),[loading,setLoading]=useState(true),[message,setMessage]=useState('');
-  const refresh=async()=>{setLoading(true);try{setOrders(await loadMarketplaceOrders());setMessage('');}catch(error){setMessage(errorText(error));}finally{setLoading(false);}};
-  useEffect(()=>{void refresh();},[refreshKey]);
-  const action=async(order:MarketplaceOrder,value:'accept'|'reject'|'cancel'|'complete')=>{try{await changeMarketplaceOrder(order.id,value);await refresh();}catch(error){setMessage(errorText(error));}};
-  const talk=(order:MarketplaceOrder)=>{if(!order.other?.whatsapp)return;const text=encodeURIComponent(`Olá, ${order.other.name}! Estou falando sobre “${order.productTitle}”, negociação ${order.id}, no Games Usados da LZ-GAMES.`);void Linking.openURL(`https://wa.me/${order.other.whatsapp}?text=${text}`);};
-  return <View style={s.section}><View style={s.headingRow}><View><Text style={s.sectionTitle}>Negociações</Text><Text style={s.sectionText}>Compras e vendas em andamento.</Text></View><Pressable onPress={refresh}><Text style={s.refresh}>ATUALIZAR</Text></Pressable></View>{message?<Text style={s.error}>{message}</Text>:null}{loading?<ActivityIndicator color="#70d8ff" style={s.loader}/>:orders.length?orders.map(order=><NeonCard key={order.id} color="#b29aff" radius={16} style={s.orderCard}><View style={s.orderHeading}><View style={s.orderTitleBox}><Text style={s.orderRole}>{order.role==='seller'?'VOCÊ ESTÁ VENDENDO':'VOCÊ ESTÁ COMPRANDO'}</Text><Text style={s.orderTitle}>{order.productTitle}</Text></View><StatusPill value={order.status}/></View><Text style={s.orderPrice}>{price(order.amountCents)}</Text><Text style={s.orderCode}>{order.id} · {order.other?.name??'Contato indisponível'}</Text>{order.status==='requested'?<Text style={s.expiryText}>RESERVA AUTOMÁTICA POR ATÉ 24 HORAS</Text>:null}<View style={s.orderActions}>{order.other?.whatsapp?<Pressable onPress={()=>talk(order)} style={s.whatsapp}><Text style={s.whatsappText}>WHATSAPP</Text></Pressable>:null}{order.role==='seller'&&order.status==='requested'?<><Pressable onPress={()=>action(order,'accept')} style={s.accept}><Text style={s.acceptText}>ACEITAR</Text></Pressable><Pressable onPress={()=>action(order,'reject')} style={s.smallDanger}><Text style={s.dangerText}>RECUSAR</Text></Pressable></>:null}{order.role==='buyer'&&order.status==='requested'?<Pressable onPress={()=>action(order,'cancel')} style={s.smallDanger}><Text style={s.dangerText}>CANCELAR</Text></Pressable>:null}{order.status==='accepted'?<Pressable onPress={()=>action(order,'complete')} style={s.accept}><Text style={s.acceptText}>CONCLUIR</Text></Pressable>:null}</View></NeonCard>):<Empty>Nenhuma negociação encontrada.</Empty>}</View>;
+function useItems<T>(load: () => Promise<T[]>) {
+  const [items, setItems] = useState<T[]>([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  const epoch = useRef(0),
+    alive = useRef(true);
+  const refresh = useCallback(async () => {
+    const id = ++epoch.current;
+    setLoading(true);
+    setError("");
+    try {
+      const data = await load();
+      if (alive.current && id === epoch.current) setItems(data);
+    } catch (e) {
+      if (alive.current && id === epoch.current) setError(errorText(e));
+    } finally {
+      if (alive.current && id === epoch.current) setLoading(false);
+    }
+  }, [load]);
+  useEffect(() => {
+    alive.current = true;
+    void refresh();
+    return () => {
+      alive.current = false;
+      epoch.current++;
+    };
+  }, [refresh]);
+  return { items, loading, error, refresh };
+}
+function MyProducts({
+  onSelect,
+  onSell,
+  onBusy,
+}: {
+  onSelect: (product: MarketplaceProduct) => void;
+  onSell: () => void;
+  onBusy: (value: boolean) => void;
+}) {
+  const { items, loading, error, refresh } = useItems(
+    loadMyMarketplaceProducts,
+  );
+  const [filter, setFilter] = useState("all"),
+    [working, setWorking] = useState<string | null>(null),
+    lock = useRef(false);
+  const action = async (
+    product: MarketplaceProduct,
+    status: "active" | "paused" | "closed",
+  ) => {
+    if (lock.current) return;
+    lock.current = true;
+    setWorking(product.id);
+    onBusy(true);
+    try {
+      await changeMarketplaceProductStatus(product.id, status);
+      await refresh();
+    } catch (e) {
+      Alert.alert("Não foi possível atualizar", errorText(e));
+    } finally {
+      lock.current = false;
+      setWorking(null);
+      onBusy(false);
+    }
+  };
+  const filtered =
+    filter === "all" ? items : items.filter((p) => p.status === filter);
+  return (
+    <FlatList
+      data={filtered}
+      keyExtractor={(p) => p.id}
+      contentContainerStyle={s.managementContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={refresh}
+          tintColor={C.accent}
+        />
+      }
+      ListHeaderComponent={
+        <View style={s.managementHeader}>
+          <View style={s.rowBetween}>
+            <View>
+              <Text style={s.title}>Seu espaço de vendas</Text>
+              <Text style={s.bodyMuted}>Seus produtos, no seu controle.</Text>
+            </View>
+          </View>
+          <View style={s.stats}>
+            {[
+              ["À venda", items.filter((p) => p.status === "active").length],
+              [
+                "Reservados",
+                items.filter((p) => p.status === "reserved").length,
+              ],
+              ["Vendidos", items.filter((p) => p.status === "sold").length],
+            ].map(([text, count]) => (
+              <View key={text} style={s.stat}>
+                <Text style={s.statNumber}>
+                  {loading || error ? "—" : count}
+                </Text>
+                <Text style={s.caption}>{text}</Text>
+              </View>
+            ))}
+          </View>
+          <Action
+            title="+ Criar anúncio"
+            onPress={onSell}
+            disabled={!!working}
+          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.chipScroll}
+          >
+            {[
+              ["all", "Todos"],
+              ["active", "À venda"],
+              ["paused", "Pausados"],
+              ["reserved", "Reservados"],
+              ["sold", "Vendidos"],
+              ["closed", "Encerrados"],
+            ].map(([id, text]) => (
+              <Pressable
+                accessibilityRole="button"
+                key={id}
+                style={[s.chip, filter === id && s.chipActive]}
+                onPress={() => setFilter(id!)}
+              >
+                <Text style={[s.chipText, filter === id && s.chipTextActive]}>
+                  {text}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {error ? (
+            <Notice text={error} error onRetry={() => void refresh()} />
+          ) : null}
+        </View>
+      }
+      renderItem={({ item }) => (
+        <View style={s.managementCard}>
+          <ProductCard compact product={item} onPress={() => onSelect(item)} />
+          <View style={s.managementActions}>
+            <StatusPill value={item.status} />
+            {working === item.id ? (
+              <ActivityIndicator color={C.accent} />
+            ) : null}
+          </View>
+          {["active", "paused"].includes(item.status) ? (
+            <View style={s.managementActions}>
+              <View style={s.flex}>
+                <Action
+                  title={item.status === "active" ? "Pausar" : "Reativar"}
+                  secondary
+                  disabled={!!working}
+                  onPress={() =>
+                    void action(
+                      item,
+                      item.status === "active" ? "paused" : "active",
+                    )
+                  }
+                />
+              </View>
+              <View style={s.flex}>
+                <Action
+                  title="Encerrar"
+                  secondary
+                  disabled={!!working}
+                  onPress={() =>
+                    Alert.alert(
+                      "Encerrar anúncio?",
+                      "Ele sairá do catálogo e não poderá ser reativado.",
+                      [
+                        { text: "Cancelar", style: "cancel" },
+                        {
+                          text: "Encerrar",
+                          style: "destructive",
+                          onPress: () => void action(item, "closed"),
+                        },
+                      ],
+                    )
+                  }
+                />
+              </View>
+            </View>
+          ) : null}
+        </View>
+      )}
+      ListEmptyComponent={
+        !loading && !error ? (
+          <Empty
+            title="Nenhum anúncio nesta seção"
+            text="Seus produtos publicados aparecerão aqui para você acompanhar."
+            action="Criar anúncio"
+            onPress={onSell}
+          />
+        ) : null
+      }
+    />
+  );
+}
+function Orders({ onBusy }: { onBusy: (value: boolean) => void }) {
+  const { items, loading, error, refresh } = useItems(loadMarketplaceOrders);
+  const [filter, setFilter] = useState("active"),
+    [working, setWorking] = useState<string | null>(null),
+    lock = useRef(false);
+  const filtered = items.filter((o) =>
+    filter === "active"
+      ? ["requested", "accepted"].includes(o.status)
+      : filter === "buyer"
+        ? o.role === "buyer"
+        : filter === "seller"
+          ? o.role === "seller"
+          : !["requested", "accepted"].includes(o.status),
+  );
+  const action = async (
+    order: MarketplaceOrder,
+    value: "accept" | "reject" | "cancel" | "complete",
+  ) => {
+    if (lock.current) return;
+    lock.current = true;
+    setWorking(order.id);
+    onBusy(true);
+    try {
+      await changeMarketplaceOrder(order.id, value);
+      await refresh();
+    } catch (e) {
+      Alert.alert("Não foi possível atualizar", errorText(e));
+    } finally {
+      lock.current = false;
+      setWorking(null);
+      onBusy(false);
+    }
+  };
+  const confirm = (
+    order: MarketplaceOrder,
+    value: "accept" | "reject" | "cancel" | "complete",
+  ) => {
+    const texts = {
+      accept: [
+        "Aceitar reserva?",
+        "O produto sairá da venda. Combine pagamento e entrega com o comprador.",
+      ],
+      reject: ["Recusar reserva?", "O produto voltará a ficar disponível."],
+      cancel: [
+        "Cancelar reserva?",
+        "O produto será liberado para outros compradores.",
+      ],
+      complete: [
+        "Negociação concluída?",
+        "Confirme apenas se o produto foi entregue e o pagamento foi combinado entre vocês. O aplicativo não processa o pagamento.",
+      ],
+    };
+    Alert.alert(texts[value][0]!, texts[value][1], [
+      { text: "Voltar", style: "cancel" },
+      { text: "Confirmar", onPress: () => void action(order, value) },
+    ]);
+  };
+  const talk = async (order: MarketplaceOrder) => {
+    const phone = (order.other?.whatsapp ?? "").replace(/\D/g, "");
+    if (!/^\d{10,15}$/.test(phone)) {
+      Alert.alert(
+        "Contato indisponível",
+        "Atualize as negociações e tente novamente.",
+      );
+      return;
+    }
+    try {
+      await Linking.openURL(
+        "https://wa.me/" +
+          phone +
+          "?text=" +
+          encodeURIComponent(
+            "Olá! Vamos conversar sobre “" +
+              order.productTitle +
+              "”, reserva " +
+              order.id +
+              ", no Games Usados da LZ-GAMES?",
+          ),
+      );
+    } catch {
+      Alert.alert(
+        "Não foi possível abrir o WhatsApp",
+        "Confira se há um aplicativo ou navegador disponível.",
+      );
+    }
+  };
+  return (
+    <FlatList
+      data={filtered}
+      keyExtractor={(o) => o.id}
+      contentContainerStyle={s.managementContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={refresh}
+          tintColor={C.accent}
+        />
+      }
+      ListHeaderComponent={
+        <View style={s.managementHeader}>
+          <Text style={s.title}>Suas negociações</Text>
+          <Text style={s.bodyMuted}>Cada etapa, sem perder a conversa.</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.chipScroll}
+          >
+            {[
+              ["active", "Em andamento"],
+              ["buyer", "Compras"],
+              ["seller", "Vendas"],
+              ["history", "Histórico"],
+            ].map(([id, text]) => (
+              <Pressable
+                accessibilityRole="button"
+                key={id}
+                style={[s.chip, filter === id && s.chipActive]}
+                onPress={() => setFilter(id!)}
+              >
+                <Text style={[s.chipText, filter === id && s.chipTextActive]}>
+                  {text}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {error ? (
+            <Notice text={error} error onRetry={() => void refresh()} />
+          ) : null}
+        </View>
+      }
+      renderItem={({ item: order }) => (
+        <View style={s.orderCard}>
+          <View style={s.rowBetween}>
+            <Text style={s.orderRole}>
+              {order.role === "seller" ? "SUA VENDA" : "SUA COMPRA"}
+            </Text>
+            <StatusPill value={order.status} />
+          </View>
+          <Text style={s.orderTitle}>{order.productTitle}</Text>
+          <Text style={s.productPrice}>{price(order.amountCents)}</Text>
+          <Text selectable style={s.caption}>
+            {"Reserva " + order.id}
+          </Text>
+          <View style={s.divider} />
+          <Text style={s.body}>
+            {order.other?.name ?? "Contato indisponível"}
+          </Text>
+          <Text style={s.bodyMuted}>
+            {order.status === "requested"
+              ? "Aguardando resposta do vendedor. A reserva expira em até 24 horas."
+              : order.status === "accepted"
+                ? "Reserva aceita. Combine pagamento e entrega diretamente."
+                : order.status === "completed"
+                  ? "Negociação marcada como concluída."
+                  : "Esta negociação foi encerrada."}
+          </Text>
+          {working === order.id ? <ActivityIndicator color={C.accent} /> : null}
+          {order.other?.whatsapp &&
+          ["requested", "accepted"].includes(order.status) ? (
+            <Action
+              title="Conversar no WhatsApp"
+              secondary
+              disabled={!!working}
+              onPress={() => void talk(order)}
+            />
+          ) : null}
+          <View style={s.orderActions}>
+            {order.role === "seller" && order.status === "requested" ? (
+              <>
+                <View style={s.flex}>
+                  <Action
+                    title="Aceitar"
+                    disabled={!!working}
+                    onPress={() => confirm(order, "accept")}
+                  />
+                </View>
+                <View style={s.flex}>
+                  <Action
+                    title="Recusar"
+                    secondary
+                    disabled={!!working}
+                    onPress={() => confirm(order, "reject")}
+                  />
+                </View>
+              </>
+            ) : null}
+            {order.role === "buyer" && order.status === "requested" ? (
+              <View style={s.flex}>
+                <Action
+                  title="Cancelar reserva"
+                  secondary
+                  disabled={!!working}
+                  onPress={() => confirm(order, "cancel")}
+                />
+              </View>
+            ) : null}
+            {order.status === "accepted" ? (
+              <View style={s.flex}>
+                <Action
+                  title="Marcar como concluída"
+                  disabled={!!working}
+                  onPress={() => confirm(order, "complete")}
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      )}
+      ListEmptyComponent={
+        !loading && !error ? (
+          <Empty
+            title="Nenhuma negociação nesta seção"
+            text="Ao reservar um produto ou receber uma reserva, acompanhe os próximos passos aqui."
+          />
+        ) : null
+      }
+    />
+  );
 }
 
-export function Marketplace(){
-  const [section,setSection]=useState<Section>('catalog'),[selected,setSelected]=useState<MarketplaceProduct|null>(null),[revision,setRevision]=useState(0);
-  const changed=()=>{setRevision(value=>value+1);};
-  if(selected)return <ProductDetails product={selected} onBack={()=>setSelected(null)} onChanged={()=>{changed();setSelected(null);setSection('orders');}}/>;
-  return <View><View style={s.tabs}>{([['catalog','Comprar'],['sell','Vender'],['mine','Meus'],['orders','Negócios']] as [Section,string][]).map(item=><Pressable accessibilityRole="tab" accessibilityState={{selected:section===item[0]}} key={item[0]} onPress={()=>setSection(item[0])} style={[s.tab,section===item[0]&&s.tabOn]}><Text style={[s.tabText,section===item[0]&&s.tabTextOn]}>{item[1]}</Text></Pressable>)}</View>
-    {section==='catalog'?<Catalog onSelect={setSelected}/>:section==='sell'?<SellerForm onCreated={()=>{changed();setSection('mine');}}/>:section==='mine'?<MyProducts refreshKey={revision} onSelect={setSelected}/>:<Orders refreshKey={revision}/>}</View>;
+export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
+  const [section, setSection] = useState<Section>("catalog"),
+    [selected, setSelected] = useState<MarketplaceProduct | null>(null),
+    [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const dirty = useRef(false);
+  const onDirty = useCallback((value: boolean) => {
+    dirty.current = value;
+  }, []);
+  const navigate = useCallback(
+    (next: () => void) => {
+      if (busy) return;
+      if (dirty.current)
+        Alert.alert(
+          "Sair do anúncio?",
+          "As informações ainda não publicadas serão descartadas.",
+          [
+            { text: "Continuar editando", style: "cancel" },
+            {
+              text: "Descartar e sair",
+              style: "destructive",
+              onPress: () => {
+                dirty.current = false;
+                next();
+              },
+            },
+          ],
+        );
+      else next();
+    },
+    [busy],
+  );
+  const back = useCallback(() => {
+    if (busy) return;
+    if (selected) {
+      setSelected(null);
+      return;
+    }
+    navigate(() => {
+      if (section !== "catalog") setSection("catalog");
+      else onExit();
+    });
+  }, [busy, selected, section, navigate, onExit]);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        back();
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [back]);
+  const sell = () => navigate(() => setSection("sell"));
+  const selectedTitle = selected
+    ? "Detalhes do produto"
+    : section === "catalog"
+      ? "Games Usados"
+      : section === "sell"
+        ? "Novo anúncio"
+        : section === "mine"
+          ? "Meus anúncios"
+          : "Negociações";
+  return (
+    <View style={s.screen}>
+      <View style={s.topBar}>
+        <IconButton
+          label={selected ? "Voltar" : "Voltar à LZ-GAMES"}
+          glyph="‹"
+          disabled={busy}
+          onPress={selected ? back : () => navigate(onExit)}
+        />
+        <View style={s.brand}>
+          <Text style={s.brandName}>
+            LZ<Text style={s.brandSlash}> / </Text>GAMES
+          </Text>
+          <Text style={s.brandCaption}>{selectedTitle}</Text>
+        </View>
+        <View style={s.headerBadge}>
+          <Text style={s.headerBadgeText}>MARKET</Text>
+        </View>
+      </View>
+      {selected ? (
+        <ProductDetails
+          key={selected.id}
+          initial={selected}
+          onBack={back}
+          onBusy={setBusy}
+          onReserved={() => {
+            setSelected(null);
+            setSection("orders");
+            setRevision((value) => value + 1);
+          }}
+        />
+      ) : section === "catalog" ? (
+        <Catalog
+          key={"catalog" + revision}
+          onSelect={setSelected}
+          onSell={sell}
+        />
+      ) : section === "sell" ? (
+        <SellerForm
+          onDirty={onDirty}
+          onBusy={setBusy}
+          onCreated={() => {
+            dirty.current = false;
+            setRevision((value) => value + 1);
+            setSection("mine");
+          }}
+        />
+      ) : section === "mine" ? (
+        <MyProducts
+          key={"mine" + revision}
+          onSelect={(product) => {
+            if (!busy) setSelected(product);
+          }}
+          onSell={sell}
+          onBusy={setBusy}
+        />
+      ) : (
+        <Orders key={"orders" + revision} onBusy={setBusy} />
+      )}
+      {!selected ? (
+        <View style={s.shopNav}>
+          {(
+            [
+              ["catalog", "Explorar", "▦"],
+              ["sell", "Anunciar", "＋"],
+              ["mine", "Meus anúncios", "▤"],
+              ["orders", "Negociações", "⇄"],
+            ] as [Section, string, string][]
+          ).map(([id, title, glyph]) => (
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityLabel={title}
+              accessibilityState={{ selected: section === id, disabled: busy }}
+              disabled={busy}
+              key={id}
+              onPress={() => {
+                if (section !== id) navigate(() => setSection(id));
+              }}
+              style={({ pressed }) => [s.navItem, pressed && s.pressed]}
+            >
+              <View style={[s.navIconBox, section === id && s.navIconBoxOn]}>
+                <Text style={[s.navGlyph, section === id && s.navActive]}>
+                  {glyph}
+                </Text>
+              </View>
+              <Text style={[s.navLabel, section === id && s.navActive]}>
+                {title}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
-const s=StyleSheet.create({
-  tabs:{flexDirection:'row',gap:5,backgroundColor:'rgba(4,15,20,.92)',borderWidth:1,borderColor:'#1d4150',borderRadius:14,padding:5,marginBottom:10},
-  tab:{flex:1,minHeight:40,borderRadius:10,alignItems:'center',justifyContent:'center'},tabOn:{backgroundColor:'#70d8ff'},tabText:{color:'#75919c',fontSize:9,fontWeight:'900'},tabTextOn:{color:'#03131b'},
-  section:{gap:10},sectionTitle:{color:'#fff',fontSize:24,fontWeight:'900'},sectionText:{color:'#9db2bc',fontSize:12,lineHeight:17},headingRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},refresh:{color:'#70d8ff',fontSize:8,fontWeight:'900',letterSpacing:.7,padding:12},
-  searchRow:{flexDirection:'row',gap:7},search:{flex:1,height:48,borderWidth:1,borderColor:'#28576b',backgroundColor:'rgba(3,14,20,.94)',borderRadius:13,paddingHorizontal:13,color:'#fff',fontSize:13},searchButton:{width:48,height:48,borderRadius:13,backgroundColor:'#70d8ff',alignItems:'center',justifyContent:'center'},searchButtonText:{fontSize:23,color:'#03131b',fontWeight:'900'},
-  chipRow:{gap:7,paddingVertical:2},chip:{borderWidth:1,borderColor:'#2a5364',borderRadius:18,paddingHorizontal:12,paddingVertical:8,backgroundColor:'rgba(4,18,25,.88)'},chipOn:{backgroundColor:'#70d8ff',borderColor:'#a8ecff'},chipText:{color:'#acc2cb',fontSize:10,fontWeight:'800'},chipTextOn:{color:'#03131b'},
-  loader:{marginVertical:35},error:{color:'#ff8d86',fontSize:12,lineHeight:17},message:{color:'#d8f7ff',fontSize:12,lineHeight:18,backgroundColor:'rgba(10,41,52,.86)',padding:11,borderRadius:10},empty:{alignItems:'center',padding:30,borderRadius:16,borderWidth:1,borderColor:'#1e3943',backgroundColor:'rgba(3,14,19,.86)'},emptyIcon:{fontSize:30,color:'#547581'},emptyText:{color:'#8ca3ac',fontSize:12,textAlign:'center',marginTop:7},
-  productCard:{minHeight:120,flexDirection:'row',padding:9,gap:12,backgroundColor:'rgba(5,19,25,.94)',borderWidth:1},productImage:{width:104,height:104,borderRadius:11,backgroundColor:'#071016'},noImage:{alignItems:'center',justifyContent:'center'},noImageText:{color:'#70d8ff',fontWeight:'900'},productBody:{flex:1,paddingVertical:3,justifyContent:'space-between'},productMetaRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},productCategory:{color:'#70d8ff',fontSize:8,fontWeight:'900',letterSpacing:1},mineTag:{color:'#ffd66b',fontSize:7,fontWeight:'900'},productTitle:{color:'#f4f9fa',fontSize:15,fontWeight:'800',lineHeight:19},productPrice:{color:'#70f0c2',fontSize:18,fontWeight:'900'},productMeta:{color:'#7f969f',fontSize:10},
-  back:{minHeight:42,justifyContent:'center'},backText:{color:'#70d8ff',fontSize:9,fontWeight:'900',letterSpacing:.7},gallery:{height:285,borderRadius:17,backgroundColor:'#030b0f'},detailImage:{width:328,height:285},videoBox:{backgroundColor:'#030b0f',borderRadius:16,padding:8,borderWidth:1,borderColor:'#1c3d4b'},videoLabel:{color:'#688894',fontSize:7,fontWeight:'900',letterSpacing:.7,padding:6},detailVideo:{height:220,borderRadius:11},detailBody:{gap:10,padding:4},detailHeading:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},detailTitle:{color:'#fff',fontSize:23,fontWeight:'900',lineHeight:29},detailPrice:{color:'#70f0c2',fontSize:27,fontWeight:'900'},detailMeta:{color:'#9cb0b8',fontSize:12},rule:{height:1,backgroundColor:'#1a3843',marginVertical:3},detailLabel:{color:'#638795',fontSize:8,fontWeight:'900',letterSpacing:1.1},description:{color:'#d3dde1',fontSize:13,lineHeight:20},sellerBox:{borderWidth:1,borderColor:'#254957',borderRadius:13,padding:13,backgroundColor:'rgba(7,24,31,.88)'},sellerName:{color:'#fff',fontSize:15,fontWeight:'800',marginTop:4},privacy:{color:'#79939d',fontSize:10,marginTop:3},buyButton:{minHeight:54,borderRadius:13,backgroundColor:'#70f0c2',alignItems:'center',justifyContent:'center'},buyText:{color:'#03130d',fontSize:10,fontWeight:'900',letterSpacing:.5},reportButton:{minHeight:42,alignItems:'center',justifyContent:'center'},reportText:{color:'#a98181',fontSize:8,fontWeight:'900'},
-  label:{color:'#70d8ff',fontSize:8,fontWeight:'900',letterSpacing:1.1,marginTop:4},input:{height:48,borderWidth:1,borderColor:'#28576b',backgroundColor:'rgba(3,14,20,.94)',borderRadius:12,paddingHorizontal:13,color:'#fff',fontSize:13},textarea:{height:118,paddingTop:13},optionRow:{flexDirection:'row',gap:6},option:{flex:1,minHeight:42,borderWidth:1,borderColor:'#2a5364',borderRadius:10,alignItems:'center',justifyContent:'center',paddingHorizontal:4},optionOn:{backgroundColor:'#70d8ff'},optionText:{color:'#9eb6c0',fontSize:8,fontWeight:'800',textAlign:'center'},optionTextOn:{color:'#03131b'},twoColumns:{flexDirection:'row',gap:8},column:{flex:1},ufColumn:{width:74},mediaRow:{gap:8},previewBox:{width:92,height:92},preview:{width:92,height:92,borderRadius:11},remove:{position:'absolute',right:4,top:4,width:25,height:25,borderRadius:13,backgroundColor:'rgba(20,5,5,.9)',alignItems:'center',justifyContent:'center'},removeText:{color:'#ffaca6',fontSize:18,lineHeight:20},addMedia:{width:92,height:92,borderWidth:1,borderStyle:'dashed',borderColor:'#397185',borderRadius:11,alignItems:'center',justifyContent:'center'},addMediaIcon:{color:'#70d8ff',fontSize:25},addMediaText:{color:'#70d8ff',fontSize:7,fontWeight:'900'},videoPicker:{height:48,borderWidth:1,borderStyle:'dashed',borderColor:'#397185',borderRadius:12,alignItems:'center',justifyContent:'center'},videoPickerText:{color:'#70d8ff',fontSize:9,fontWeight:'900'},videoSelected:{minHeight:50,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderWidth:1,borderColor:'#2d6656',backgroundColor:'rgba(7,39,29,.86)',borderRadius:12,paddingHorizontal:12},videoSelectedText:{color:'#d9fff1',fontSize:11,flex:1},removeVideo:{color:'#ff9d96',fontSize:8,fontWeight:'900'},termsRow:{flexDirection:'row',alignItems:'flex-start',gap:9,paddingVertical:4},checkbox:{width:22,height:22,borderWidth:1,borderColor:'#3c6b7b',borderRadius:6,alignItems:'center',justifyContent:'center'},checkboxOn:{backgroundColor:'#70f0c2',borderColor:'#70f0c2'},check:{color:'#04130d',fontWeight:'900'},termsText:{flex:1,color:'#91a8b0',fontSize:10,lineHeight:15},publish:{height:54,borderRadius:13,backgroundColor:'#70f0c2',alignItems:'center',justifyContent:'center'},publishText:{color:'#04130d',fontSize:11,fontWeight:'900',letterSpacing:.6},disabledButton:{opacity:.65},
-  actions:{flexDirection:'row',alignItems:'center',justifyContent:'flex-end',gap:7,marginTop:-3,marginBottom:8,paddingHorizontal:5},statusPill:{paddingHorizontal:8,paddingVertical:5,borderRadius:9,borderWidth:1},statusGood:{backgroundColor:'#113c2c',borderColor:'#2c8b69'},statusWarn:{backgroundColor:'#493d14',borderColor:'#92792b'},statusMuted:{backgroundColor:'#252c30',borderColor:'#4a575c'},statusText:{color:'#e7f8f2',fontSize:7,fontWeight:'900',letterSpacing:.5},secondaryButton:{minHeight:32,borderWidth:1,borderColor:'#41606b',borderRadius:9,paddingHorizontal:11,alignItems:'center',justifyContent:'center'},secondaryText:{color:'#b9d3dc',fontSize:8,fontWeight:'900'},dangerText:{color:'#ff9d96',fontSize:8,fontWeight:'900'},
-  orderCard:{padding:14,gap:7,backgroundColor:'rgba(20,14,38,.93)',borderWidth:1},orderHeading:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',gap:8},orderTitleBox:{flex:1},orderRole:{color:'#b29aff',fontSize:7,fontWeight:'900',letterSpacing:.8},orderTitle:{color:'#fff',fontSize:15,fontWeight:'900',marginTop:3},orderPrice:{color:'#70f0c2',fontSize:18,fontWeight:'900'},orderCode:{color:'#84939c',fontSize:9},expiryText:{color:'#ffd66b',fontSize:7,fontWeight:'900',letterSpacing:.5},orderActions:{flexDirection:'row',gap:6,marginTop:5},whatsapp:{minHeight:36,borderRadius:9,backgroundColor:'#35db83',paddingHorizontal:12,alignItems:'center',justifyContent:'center'},whatsappText:{color:'#03130d',fontSize:8,fontWeight:'900'},accept:{minHeight:36,borderRadius:9,backgroundColor:'#b29aff',paddingHorizontal:12,alignItems:'center',justifyContent:'center'},acceptText:{color:'#120924',fontSize:8,fontWeight:'900'},smallDanger:{minHeight:36,borderRadius:9,borderWidth:1,borderColor:'#74413f',paddingHorizontal:11,alignItems:'center',justifyContent:'center'},
+const s = StyleSheet.create({
+  flex: { flex: 1 },
+  screen: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 900,
+    alignSelf: "center",
+    backgroundColor: C.bg,
+    paddingTop:
+      Platform.OS === "android" ? (NativeStatusBar.currentHeight ?? 24) : 0,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderColor: C.line,
+  },
+  brand: { flex: 1, gap: 2 },
+  brandName: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 1.6,
+    color: C.text,
+  },
+  brandSlash: { color: C.accent },
+  brandCaption: { fontSize: 12, color: C.muted },
+  headerBadge: {
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 7,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  headerBadgeText: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    fontWeight: "800",
+    color: C.accent,
+  },
+  iconButton: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  iconGlyph: { fontSize: 30, color: C.text, lineHeight: 36 },
+  pressed: { opacity: 0.72 },
+  disabled: { opacity: 0.45 },
+  title: {
+    color: C.text,
+    fontSize: 23,
+    lineHeight: 30,
+    fontWeight: "800",
+    flexShrink: 1,
+  },
+  subtitle: {
+    fontSize: 17,
+    lineHeight: 23,
+    color: C.text,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  body: { fontSize: 14, lineHeight: 21, color: C.text },
+  bodyMuted: { fontSize: 14, lineHeight: 21, color: C.muted },
+  caption: { fontSize: 12, lineHeight: 18, color: C.muted },
+  eyebrow: {
+    fontSize: 10,
+    lineHeight: 16,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    color: C.accent,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  divider: { height: 1, backgroundColor: C.line, marginVertical: 8 },
+  button: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: C.accent,
+    borderWidth: 1,
+    borderColor: C.accent,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  buttonText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "800",
+    textAlign: "center",
+    color: C.bg,
+  },
+  buttonSecondary: { backgroundColor: C.surface, borderColor: C.line },
+  buttonSecondaryText: { color: C.text },
+  searchArea: { paddingTop: 14, borderBottomWidth: 1, borderColor: C.line },
+  searchBox: {
+    marginHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 14,
+  },
+  searchGlyph: { fontSize: 28, color: C.accent, marginLeft: 12 },
+  searchInput: {
+    flex: 1,
+    minWidth: 40,
+    color: C.text,
+    fontSize: 14,
+    minHeight: 52,
+    paddingHorizontal: 10,
+  },
+  filterButton: {
+    minHeight: 48,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: C.line,
+  },
+  filterText: { fontSize: 12, color: C.accent, fontWeight: "700" },
+  quickCategories: { paddingHorizontal: 18, gap: 20 },
+  categoryTab: {
+    minHeight: 50,
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderColor: "transparent",
+  },
+  categoryTabOn: { borderColor: C.accent },
+  categoryText: { fontSize: 13, color: C.muted },
+  categoryTextOn: { fontWeight: "700", color: C.accent },
+  appliedFilters: {
+    minHeight: 48,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  catalogContent: { padding: 18, paddingBottom: 16 },
+  catalogHeader: { gap: 8, marginBottom: 16 },
+  hero: {
+    backgroundColor: "#162c37",
+    borderWidth: 1,
+    borderColor: "#2c4b59",
+    borderRadius: 20,
+    minHeight: 175,
+    overflow: "hidden",
+    flexDirection: "row",
+    marginBottom: 14,
+  },
+  heroCopy: { flex: 1, padding: 18, paddingRight: 0, zIndex: 1 },
+  heroTitle: {
+    fontSize: 31,
+    lineHeight: 34,
+    letterSpacing: -0.8,
+    color: C.text,
+    fontWeight: "900",
+    marginTop: 10,
+  },
+  heroText: { fontSize: 12, color: "#bdd9df", marginTop: 10 },
+  controllerArt: {
+    width: 128,
+    alignSelf: "stretch",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  orbit: {
+    position: "absolute",
+    width: 148,
+    height: 148,
+    borderRadius: 74,
+    borderWidth: 1,
+    borderColor: "#42626f",
+    right: -27,
+    top: 10,
+  },
+  controllerBody: {
+    width: 110,
+    height: 72,
+    backgroundColor: "#d1dde1",
+    borderRadius: 28,
+    transform: [{ rotate: "-17deg" }],
+    borderBottomWidth: 7,
+    borderColor: "#758b99",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  dpadH: {
+    position: "absolute",
+    width: 26,
+    height: 9,
+    borderRadius: 2,
+    backgroundColor: "#304354",
+    left: 15,
+    top: 23,
+  },
+  dpadV: {
+    position: "absolute",
+    width: 9,
+    height: 26,
+    borderRadius: 2,
+    backgroundColor: "#304354",
+    left: 23,
+    top: 15,
+  },
+  padDot1: {
+    position: "absolute",
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#3a7a85",
+    right: 14,
+    top: 15,
+  },
+  padDot2: {
+    position: "absolute",
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#3a7a85",
+    right: 26,
+    top: 27,
+  },
+  padStick1: {
+    position: "absolute",
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    backgroundColor: "#465765",
+    left: 39,
+    bottom: 10,
+  },
+  padStick2: {
+    position: "absolute",
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    backgroundColor: "#465765",
+    right: 31,
+    bottom: 8,
+  },
+  artTag: {
+    position: "absolute",
+    bottom: 16,
+    right: 10,
+    borderWidth: 1,
+    borderColor: "#456370",
+    borderRadius: 5,
+    padding: 5,
+  },
+  artTagText: {
+    fontSize: 8,
+    color: "#b4d5df",
+    letterSpacing: 0.7,
+    fontWeight: "800",
+  },
+  gridRow: { gap: 12 },
+  gridItem: { flex: 1, maxWidth: "100%", marginBottom: 12 },
+  product: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    overflow: "hidden",
+  },
+  productMedia: { width: "100%", aspectRatio: 1, backgroundColor: "#202936" },
+  fill: { width: "100%", height: "100%" },
+  productCopy: { padding: 12, gap: 5, flex: 1 },
+  productCategory: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: C.accent,
+    fontWeight: "600",
+  },
+  productTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    minHeight: 40,
+    fontWeight: "600",
+    color: C.text,
+  },
+  productPrice: {
+    fontSize: 21,
+    lineHeight: 29,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.5,
+  },
+  videoBadge: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    backgroundColor: "#101a27ed",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7,
+  },
+  videoBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
+  imageFallback: {
+    backgroundColor: "#202936",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  imageFallbackBrand: {
+    color: "#5e788c",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  skeletonGrid: { flexDirection: "row", gap: 12 },
+  skeletonCard: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  skeletonPhoto: { height: 155, backgroundColor: C.raised },
+  skeletonLine: {
+    height: 12,
+    backgroundColor: C.raised,
+    margin: 12,
+    borderRadius: 4,
+    width: "75%",
+  },
+  listFooter: { gap: 18, paddingTop: 8, paddingBottom: 20 },
+  footerText: { textAlign: "center", color: C.muted, fontSize: 12 },
+  safetyCaption: {
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 19,
+    color: C.dim,
+    paddingHorizontal: 15,
+  },
+  empty: {
+    paddingVertical: 32,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    gap: 12,
+  },
+  emptyArt: {
+    height: 85,
+    width: 90,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyBox: {
+    height: 52,
+    width: 52,
+    borderWidth: 2,
+    borderColor: "#56798c",
+    borderRadius: 12,
+    transform: [{ rotate: "-10deg" }],
+  },
+  emptySpark: {
+    position: "absolute",
+    height: 13,
+    width: 13,
+    borderRadius: 4,
+    backgroundColor: C.accent,
+    right: 10,
+    top: 8,
+    transform: [{ rotate: "20deg" }],
+  },
+  emptyTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700",
+    color: C.text,
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+    color: C.muted,
+    marginBottom: 5,
+    maxWidth: 350,
+  },
+  notice: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#192c36",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#304b57",
+  },
+  noticeText: { color: "#c1d9e4", fontSize: 13, lineHeight: 20 },
+  noticeError: { backgroundColor: "#321f29", borderColor: "#67404c" },
+  errorText: { color: C.danger },
+  modalShade: { flex: 1, backgroundColor: "#0009", justifyContent: "flex-end" },
+  modalBackdrop: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0 },
+  sheet: {
+    backgroundColor: C.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "88%",
+    borderWidth: 1,
+    borderColor: C.line,
+    paddingBottom: Platform.OS === "android" ? 42 : 30,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 4,
+    alignSelf: "center",
+    backgroundColor: C.line,
+    borderRadius: 3,
+    marginBottom: 12,
+  },
+  sheetContent: { gap: 18, paddingVertical: 15 },
+  sheetActions: { flexDirection: "row", gap: 12, paddingTop: 18 },
+  sheetHeading: { flexDirection: "row", alignItems: "center", gap: 10 },
+  chip: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    justifyContent: "center",
+    backgroundColor: C.surface,
+  },
+  chipActive: { backgroundColor: "#213f45", borderColor: C.accent },
+  chipText: { fontSize: 13, color: C.muted, lineHeight: 20 },
+  chipTextActive: { color: C.accent, fontWeight: "700" },
+  chipScroll: { gap: 8, paddingVertical: 8 },
+  shopNav: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderColor: C.line,
+    backgroundColor: "#101720",
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "android" ? 38 : 12,
+  },
+  navItem: { flex: 1, alignItems: "center", minHeight: 58, gap: 3 },
+  navIconBox: {
+    minWidth: 50,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 9,
+  },
+  navIconBoxOn: { backgroundColor: "#203d43" },
+  navGlyph: { fontSize: 23, color: C.dim },
+  navLabel: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: C.muted,
+    textAlign: "center",
+  },
+  navActive: { color: C.accent, fontWeight: "700" },
+  detailContent: { paddingBottom: 22 },
+  gallery: { backgroundColor: "#121a24", position: "relative" },
+  noGallery: { height: 200, alignItems: "center", justifyContent: "center" },
+  photoCounter: {
+    position: "absolute",
+    bottom: 12,
+    alignSelf: "center",
+    backgroundColor: "#0b1018e8",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  photoCounterText: { color: C.text, fontSize: 11 },
+  detailCopy: { padding: 20, gap: 14 },
+  detailTitle: {
+    fontSize: 25,
+    lineHeight: 32,
+    fontWeight: "700",
+    color: C.text,
+  },
+  detailPrice: {
+    fontSize: 33,
+    lineHeight: 40,
+    fontWeight: "800",
+    letterSpacing: -1,
+    color: C.text,
+  },
+  infoChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: C.raised,
+  },
+  description: { fontSize: 15, lineHeight: 24, color: "#c6d2df" },
+  seller: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 15,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.line,
+    alignItems: "center",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#2a4252",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { fontSize: 19, fontWeight: "800", color: C.accent },
+  sellerName: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "700",
+    marginVertical: 3,
+  },
+  safety: {
+    gap: 8,
+    padding: 15,
+    backgroundColor: "#24261e",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#464a35",
+  },
+  safetyTitle: {
+    color: C.gold,
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "700",
+  },
+  purchaseDock: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 18,
+    paddingBottom: Platform.OS === "android" ? 44 : 18,
+    borderTopWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+    alignItems: "center",
+  },
+  dockPrice: { color: C.text, fontSize: 22, fontWeight: "800" },
+  pill: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7 },
+  pillGood: { backgroundColor: "#22433a" },
+  pillWarm: { backgroundColor: "#443d28" },
+  pillNeutral: { backgroundColor: "#303b48" },
+  pillText: { fontSize: 11, lineHeight: 16, fontWeight: "600", color: C.text },
+  videoPanel: { gap: 10 },
+  videoPreview: {
+    height: 190,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  videoPlay: {
+    position: "absolute",
+    top: 65,
+    alignSelf: "center",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoPlayText: { fontSize: 20, color: C.bg },
+  detailVideo: {
+    height: 230,
+    width: "100%",
+    backgroundColor: "#000",
+    borderRadius: 12,
+  },
+  fullscreen: {
+    flex: 1,
+    backgroundColor: "#05090f",
+    paddingTop:
+      Platform.OS === "android" ? (NativeStatusBar.currentHeight ?? 24) : 45,
+    paddingBottom: 40,
+  },
+  fullscreenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  fullscreenImage: { flex: 1, width: "100%" },
+  fullscreenControls: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  steps: {
+    flexDirection: "row",
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderColor: C.line,
+  },
+  step: { flex: 1, alignItems: "center", gap: 6 },
+  stepNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: C.raised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumberOn: { backgroundColor: C.accent },
+  stepDigit: { fontSize: 12, fontWeight: "800", color: C.muted },
+  stepDigitOn: { color: C.bg },
+  stepLabel: { fontSize: 12, color: C.dim },
+  stepLabelOn: { color: C.text, fontWeight: "700" },
+  formContent: { padding: 20, gap: 22, paddingBottom: 35 },
+  field: { gap: 9 },
+  fieldLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: C.text,
+  },
+  input: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    lineHeight: 22,
+    color: C.text,
+    backgroundColor: C.surface,
+  },
+  textarea: { minHeight: 120 },
+  priceInput: { fontSize: 23, fontWeight: "700" },
+  locationRow: { flexDirection: "row", gap: 12 },
+  uf: { width: 76 },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  photoTile: {
+    width: "47%",
+    aspectRatio: 1,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+  },
+  addPhoto: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  addPhotoGlyph: { fontSize: 35, color: C.accent },
+  addPhotoText: { fontSize: 13, color: C.accent, fontWeight: "700" },
+  coverBadge: {
+    position: "absolute",
+    left: 8,
+    top: 8,
+    backgroundColor: "#142631ee",
+    borderRadius: 5,
+    padding: 5,
+  },
+  removePhoto: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  removePhotoText: {
+    fontSize: 26,
+    color: "#fff",
+    backgroundColor: "#151b25e8",
+    borderRadius: 16,
+    textAlign: "center",
+    width: 32,
+    height: 32,
+    lineHeight: 30,
+  },
+  setCover: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#142631e8",
+  },
+  setCoverText: { fontSize: 12, fontWeight: "700", color: C.text },
+  videoSelected: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+  },
+  reviewCard: {
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+  },
+  reviewImage: { width: "100%", aspectRatio: 1.5 },
+  reviewFacts: { gap: 12 },
+  terms: {
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 48,
+    alignItems: "flex-start",
+  },
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: C.dim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxOn: { backgroundColor: C.accent, borderColor: C.accent },
+  checkText: { fontSize: 17, fontWeight: "800", color: C.bg },
+  termsText: { flex: 1, color: C.muted, fontSize: 13, lineHeight: 21 },
+  formDock: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+  },
+  managementContent: { padding: 18, paddingBottom: 28 },
+  managementHeader: { gap: 14, marginBottom: 18 },
+  stats: {
+    flexDirection: "row",
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 14,
+    backgroundColor: C.surface,
+  },
+  stat: { flex: 1, gap: 4, alignItems: "center" },
+  statNumber: { fontSize: 24, fontWeight: "800", color: C.text },
+  managementCard: {
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 16,
+    backgroundColor: C.surface,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  productCompact: { flexDirection: "row", borderWidth: 0, borderRadius: 0 },
+  compactMedia: { width: 105, height: 130 },
+  managementActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  orderCard: {
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 16,
+    backgroundColor: C.surface,
+    marginBottom: 14,
+  },
+  orderRole: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    color: C.accent,
+  },
+  orderTitle: {
+    fontSize: 19,
+    lineHeight: 26,
+    fontWeight: "700",
+    color: C.text,
+  },
+  orderActions: { flexDirection: "row", gap: 10 },
 });

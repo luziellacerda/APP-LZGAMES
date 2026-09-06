@@ -355,13 +355,13 @@ function marketplaceProduct(value:any):MarketplaceProduct{
   return {...value,priceCents:Number(value.priceCents),media:value.media.map((item:any)=>({...item,id:Number(item.id),position:Number(item.position),width:item.width===null?null:Number(item.width),height:item.height===null?null:Number(item.height),durationMs:item.durationMs===null?null:Number(item.durationMs)}))} as MarketplaceProduct;
 }
 
-export async function loadMarketplace(filters?:{query?:string;category?:string;condition?:string;cursor?:string|null}):Promise<{products:MarketplaceProduct[];nextCursor:string|null}>{
+export async function loadMarketplace(filters?:{query?:string;category?:string;condition?:string;cursor?:string|null;signal?:AbortSignal}):Promise<{products:MarketplaceProduct[];nextCursor:string|null}>{
   const params=new URLSearchParams();
   if(filters?.query?.trim())params.set('q',filters.query.trim());
   if(filters?.category)params.set('category',filters.category);
   if(filters?.condition)params.set('condition',filters.condition);
   if(filters?.cursor)params.set('cursor',filters.cursor);
-  const response=await jsonFetch(`${CORE_API}/marketplace/products?${params}`,{headers:await marketplaceHeaders()});
+  const response=await jsonFetch(`${CORE_API}/marketplace/products?${params}`,{headers:await marketplaceHeaders(),signal:filters?.signal});
   if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar Games Usados.');
   return {products:response.data.map(marketplaceProduct),nextCursor:typeof response.nextCursor==='string'?response.nextCursor:null};
 }
