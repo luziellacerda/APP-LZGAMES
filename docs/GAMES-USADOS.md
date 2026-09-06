@@ -1,6 +1,6 @@
 # Games Usados — arquitetura e operação
 
-**Revisão posterior ao APK 27:** veja [a nova experiência, testes, prévias e limites](GAMES-USADOS-UX.md). Essa revisão ainda requer novo APK e validação física; não aparece no APK 27 já compilado.
+**Entrega 28:** veja [implantação, moderação, testes e limites de produção](GAMES-USADOS-PRODUCAO.md). O APK 27 não contém essa revisão. O documento abaixo preserva a arquitetura inicial; as regras novas estão no documento da entrega 28.
 
 ## Objetivo
 

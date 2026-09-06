@@ -10,6 +10,8 @@ const MEDIA_ROOT = process.env.MARKETPLACE_MEDIA_ROOT ||
 const TMP_ROOT = process.env.MARKETPLACE_TMP_ROOT ||
   "/home/lz-servidor/.cache/lzgames-marketplace/uploads";
 let storageReady = null;
+// Do not let a disguised playlist make ffmpeg/ffprobe read URLs or arbitrary files.
+const INPUT_GUARDS = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "image2,jpeg_pipe,png_pipe,webp_pipe,mov,matroska,webm", "-threads", "2"];
 
 function run(command, args, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -38,6 +40,7 @@ async function probe(file) {
   let stdout = "";
   await new Promise((resolve, reject) => {
     const child = spawn("/usr/bin/ffprobe", [
+      ...INPUT_GUARDS,
       "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,duration",
       "-of", "json", file,
     ], { stdio: ["ignore", "pipe", "pipe"] });
@@ -63,7 +66,7 @@ function videoStream(info) {
 function dimensions(stream) {
   const width = Number(stream?.width);
   const height = Number(stream?.height);
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 16 || height < 16 || width > 12000 || height > 12000) {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 16 || height < 16 || width > 12000 || height > 12000 || width*height>48000000) {
     throw new Error("MEDIA_DIMENSIONS_INVALID");
   }
   return { width, height };
@@ -76,7 +79,7 @@ async function processImage(input, outputDir, position) {
   const storageName = `${crypto.randomUUID()}.jpg`;
   const output = path.join(outputDir, storageName);
   await run("/usr/bin/ffmpeg", [
-    "-nostdin", "-v", "error", "-y", "-i", input.path,
+    "-nostdin", "-v", "error", "-y", ...INPUT_GUARDS, "-i", input.path, "-threads", "2", "-filter_threads", "2",
     "-map_metadata", "-1", "-frames:v", "1",
     "-vf", "scale=w='min(1600,iw)':h='min(1600,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuvj420p",
     "-q:v", "4", output,
@@ -100,21 +103,21 @@ async function processVideo(input, outputDir, position) {
   const output = path.join(outputDir, storageName);
   const poster = path.join(outputDir, posterName);
   await run("/usr/bin/ffmpeg", [
-    "-nostdin", "-v", "error", "-y", "-i", input.path,
+    "-nostdin", "-v", "error", "-y", ...INPUT_GUARDS, "-i", input.path, "-threads", "2", "-filter_threads", "2",
     "-map", "0:v:0", "-map", "0:a?", "-map_metadata", "-1", "-t", "30",
     "-vf", "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30",
     "-c:v", "libx264", "-preset", "faster", "-crf", "28", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", output,
   ], 180000);
   await run("/usr/bin/ffmpeg", [
-    "-nostdin", "-v", "error", "-y", "-ss", String(Math.min(0.5, duration / 3)),
+    "-nostdin", "-v", "error", "-y", ...INPUT_GUARDS, "-ss", String(Math.min(0.5, duration / 3)),
     "-i", output, "-map_metadata", "-1", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "5", poster,
   ], 30000);
   const after = await probe(output);
   const size = dimensions(videoStream(after));
   const stat = await fs.stat(output);
   if (stat.size < 1000 || stat.size > 24 * 1024 * 1024) throw new Error("MEDIA_OUTPUT_SIZE_INVALID");
-  return { kind: "video", storageName, posterName, position, ...size, durationMs: Math.round(duration * 1000), bytes: stat.size };
+  return { kind: "video", storageName, posterName, position, ...size, durationMs: Math.round(Number(after.format.duration)*1000), bytes: stat.size };
 }
 
 async function processUpload(files, publicId) {

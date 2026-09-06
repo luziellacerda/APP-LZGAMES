@@ -1,5 +1,7 @@
 # Games Usados — revisão da experiência após o APK 27
 
+Atualização: a experiência abaixo foi incorporada à [entrega 28, com moderação e proteções de servidor](GAMES-USADOS-PRODUCAO.md). Este documento registra o estado da revisão visual anterior; consulte o documento da entrega 28 para o estado mais recente.
+
 ## Estado da entrega
 
 Esta revisão está na branch `feature/appgamesusados-marketplace`. **Não faz parte do APK 27 já distribuído.** O código Android foi exportado localmente para validação; não houve nova compilação remota nem publicação na Play Store nesta revisão.

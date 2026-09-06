@@ -1,5 +1,7 @@
 # App Games Usados
 
+**Entrega 28:** a instalação inicial abaixo também requer `migrate-production.sql`, `lib/marketplacePolicy.js` e o painel em `admin/`. Veja [o procedimento e as limitações atuais](../../docs/GAMES-USADOS-PRODUCAO.md). Não implantar somente o cliente ou somente as novas rotas sem a migração.
+
 Marketplace isolado do aplicativo LZ-GAMES. Os clientes continuam autenticados pelo cadastro principal, mas anúncios, mídias, negociações e auditoria usam somente o banco `u214656250_appgamesusados`.
 
 ## Instalação no servidor

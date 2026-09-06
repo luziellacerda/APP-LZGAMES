@@ -28,17 +28,25 @@ import {
   changeMarketplaceOrder,
   changeMarketplaceProductStatus,
   createMarketplaceProduct,
+  marketplaceRequestKey,
+  loadMarketplaceNotices,
   loadMarketplace,
   loadMarketplaceOrders,
   loadMarketplaceProduct,
   loadMyMarketplaceProducts,
-  reportMarketplaceProduct,
   requestMarketplacePurchase,
 } from "./api";
 import {
   createCatalogController,
   parseMarketplacePrice,
 } from "./marketplace/catalog";
+import {
+  AccountSheet,
+  EditProductSheet,
+  ReportSheet,
+  MARKETPLACE_RULES,
+  MARKETPLACE_TERMS_VERSION,
+} from "./marketplace/Management";
 
 type Section = "catalog" | "sell" | "mine" | "orders";
 const C = {
@@ -686,12 +694,15 @@ function ProductDetails({
   onBack,
   onReserved,
   onBusy,
+  onBlocked,
 }: {
   initial: MarketplaceProduct;
   onBack: () => void;
   onReserved: () => void;
   onBusy: (busy: boolean) => void;
+  onBlocked: () => void;
 }) {
+  const [reporting, setReporting] = useState(false);
   const [product, setProduct] = useState(initial),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -769,25 +780,18 @@ function ProductDetails({
       ],
     );
   }
-  function report() {
-    Alert.alert(
-      "Denunciar anúncio",
-      "Selecione o motivo. A denúncia será registrada para análise.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Informação incorreta",
-          onPress: () =>
-            void mutate(async () => {
-              await reportMarketplaceProduct(product.id);
-              setFeedback("Denúncia registrada. Obrigado por informar.");
-            }),
-        },
-      ],
-    );
-  }
   return (
     <View style={s.flex}>
+      {reporting ? (
+        <ReportSheet
+          product={product}
+          onClose={() => setReporting(false)}
+          onBlocked={() => {
+            setReporting(false);
+            onBlocked();
+          }}
+        />
+      ) : null}
       <ScrollView
         contentContainerStyle={s.detailContent}
         showsVerticalScrollIndicator={false}
@@ -927,7 +931,7 @@ function ProductDetails({
               title="Denunciar este anúncio"
               secondary
               disabled={busy}
-              onPress={report}
+              onPress={() => setReporting(true)}
             />
           ) : null}
         </View>
@@ -948,6 +952,7 @@ function ProductDetails({
             }
             disabled={
               product.isMine ||
+              product.moderationStatus === "hidden" ||
               product.status !== "active" ||
               loading ||
               !!error
@@ -1023,6 +1028,8 @@ function SellerForm({
   onDirty: (dirty: boolean) => void;
   onBusy: (busy: boolean) => void;
 }) {
+  const requestKey = useRef(marketplaceRequestKey());
+  const [showRules, setShowRules] = useState(false);
   const [step, setStep] = useState(0),
     [title, setTitle] = useState(""),
     [description, setDescription] = useState(""),
@@ -1181,6 +1188,8 @@ function SellerForm({
         state: state.trim().toUpperCase(),
         photos,
         video,
+        requestKey: requestKey.current,
+        termsVersion: MARKETPLACE_TERMS_VERSION,
       });
       if (alive.current) {
         onDirty(false);
@@ -1493,10 +1502,22 @@ function SellerForm({
                 <Text style={s.checkText}>{terms ? "✓" : ""}</Text>
               </View>
               <Text style={s.termsText}>
-                O produto é meu, sua venda é permitida e as fotos, o preço e a
-                descrição são verdadeiros.
+                Li e aceito as regras de publicação. O produto é meu, sua venda
+                é permitida e as informações são verdadeiras.
               </Text>
             </Pressable>
+            <Action
+              title={
+                showRules
+                  ? "Ocultar regras de publicação"
+                  : "Ler regras de publicação"
+              }
+              secondary
+              onPress={() => setShowRules((value) => !value)}
+            />
+            {showRules ? (
+              <Text style={s.bodyMuted}>{MARKETPLACE_RULES}</Text>
+            ) : null}
             <Notice text="A reserva não é um pagamento. Você combina pagamento e entrega diretamente com o comprador." />
           </>
         )}
@@ -1566,10 +1587,12 @@ function MyProducts({
   onSelect,
   onSell,
   onBusy,
+  onEdit,
 }: {
   onSelect: (product: MarketplaceProduct) => void;
   onSell: () => void;
   onBusy: (value: boolean) => void;
+  onEdit: (product: MarketplaceProduct) => void;
 }) {
   const { items, loading, error, refresh } = useItems(
     loadMyMarketplaceProducts,
@@ -1679,6 +1702,24 @@ function MyProducts({
               <ActivityIndicator color={C.accent} />
             ) : null}
           </View>
+          {item.moderationStatus === "hidden" ? (
+            <Notice
+              text={
+                "Retirado pela moderação. " +
+                (item.moderationReason || "Entre em contato com a LZ-GAMES.")
+              }
+              error
+            />
+          ) : null}
+          {["active", "paused"].includes(item.status) &&
+          item.moderationStatus !== "hidden" ? (
+            <Action
+              title="Editar anúncio"
+              secondary
+              disabled={!!working}
+              onPress={() => onEdit(item)}
+            />
+          ) : null}
           {["active", "paused"].includes(item.status) ? (
             <View style={s.managementActions}>
               <View style={s.flex}>
@@ -1953,10 +1994,39 @@ function Orders({ onBusy }: { onBusy: (value: boolean) => void }) {
 }
 
 export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
+  const [accountOpen, setAccountOpen] = useState(false),
+    [editing, setEditing] = useState<MarketplaceProduct | null>(null),
+    [unread, setUnread] = useState(0);
   const [section, setSection] = useState<Section>("catalog"),
     [selected, setSelected] = useState<MarketplaceProduct | null>(null),
     [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true,
+      inFlight = false;
+    const refreshNotices = async () => {
+      if (inFlight || AppState.currentState === "background") return;
+      inFlight = true;
+      try {
+        const values = await loadMarketplaceNotices();
+        if (alive) setUnread(values.filter((n) => !n.readAt).length);
+      } catch {
+        /* The account panel exposes retry; this badge is non-blocking. */
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refreshNotices();
+    const timer = setInterval(() => void refreshNotices(), 60000);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshNotices();
+    });
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [revision, accountOpen]);
   const dirty = useRef(false);
   const onDirty = useCallback((value: boolean) => {
     dirty.current = value;
@@ -2017,6 +2087,23 @@ export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
           : "Negociações";
   return (
     <View style={s.screen}>
+      {accountOpen ? (
+        <AccountSheet
+          onClose={() => setAccountOpen(false)}
+          onChanged={() => setRevision((v) => v + 1)}
+        />
+      ) : null}
+      {editing ? (
+        <EditProductSheet
+          key={editing.id}
+          product={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setRevision((v) => v + 1);
+          }}
+        />
+      ) : null}
       <View style={s.topBar}>
         <IconButton
           label={selected ? "Voltar" : "Voltar à LZ-GAMES"}
@@ -2030,9 +2117,15 @@ export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
           </Text>
           <Text style={s.brandCaption}>{selectedTitle}</Text>
         </View>
-        <View style={s.headerBadge}>
-          <Text style={s.headerBadgeText}>MARKET</Text>
-        </View>
+        <IconButton
+          label={
+            "Avisos, bloqueados e regras" +
+            (unread ? ", " + unread + " avisos não lidos" : "")
+          }
+          glyph={unread ? `● ${Math.min(unread, 99)}` : "☰"}
+          disabled={busy}
+          onPress={() => navigate(() => setAccountOpen(true))}
+        />
       </View>
       {selected ? (
         <ProductDetails
@@ -2040,6 +2133,10 @@ export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
           initial={selected}
           onBack={back}
           onBusy={setBusy}
+          onBlocked={() => {
+            setSelected(null);
+            setRevision((value) => value + 1);
+          }}
           onReserved={() => {
             setSelected(null);
             setSection("orders");
@@ -2070,6 +2167,7 @@ export function Marketplace({ onExit = () => {} }: { onExit?: () => void }) {
           }}
           onSell={sell}
           onBusy={setBusy}
+          onEdit={(product) => setEditing(product)}
         />
       ) : (
         <Orders key={"orders" + revision} onBusy={setBusy} />

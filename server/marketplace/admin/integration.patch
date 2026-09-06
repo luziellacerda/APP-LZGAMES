@@ -1,0 +1,18 @@
+--- a/public/index.php
++++ b/public/index.php
+@@
++if($path==='/admin/games-usados'){require __DIR__.'/games-usados.php';exit;}
+ if(str_starts_with($path,'/api/app/')||$path==='/admin/app'){require __DIR__.'/app-communications.php';exit;}
+--- a/public/app-timer15.js
++++ b/public/app-timer15.js
+@@
+   if (nav) {
++    if (!nav.querySelector('[href="/admin/games-usados"]')) {
++      const market = document.createElement("a");
++      market.href = "/admin/games-usados";
++      market.textContent = "Games Usados · Moderação";
++      nav.append(market);
++    }
+
+# Atualizar também o parâmetro de cache do script em foot():
+# app-timer15.js?v=marketplace-production-20260906

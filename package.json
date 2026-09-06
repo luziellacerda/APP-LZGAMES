@@ -15,7 +15,8 @@
     "test:agenda": "node --test scripts/agenda-auth.test.cjs scripts/appointment-details.test.cjs",
     "test:referrals": "node --test scripts/referrals.test.cjs",
     "test:orders": "node --test scripts/order-credit.test.cjs",
-    "test:marketplace": "node --test scripts/marketplace.test.cjs scripts/marketplace-catalog.test.cjs server/marketplace/tests/media.test.js",
+    "test:marketplace": "node --test scripts/marketplace.test.cjs scripts/marketplace-catalog.test.cjs server/marketplace/tests/media.test.js server/marketplace/tests/policy.test.js",
+    "test:marketplace:sql": "LZ_MARKETPLACE_SQL_FIXTURES=1 node --test server/marketplace/tests/routes.sql.test.js",
     "submit:android": "npx eas-cli submit --platform android --profile production",
     "typecheck": "tsc --noEmit",
     "test:effects": "node --test scripts/effects.test.cjs scripts/coin-rain.test.cjs scripts/trophy-lottie.test.cjs scripts/menu-lottie.test.cjs scripts/card-lottie.test.cjs"

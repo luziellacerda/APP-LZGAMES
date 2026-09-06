@@ -60,6 +60,9 @@ test('store navigation, media and actions have explicit consumer safety boundari
   assert.match(ui,/current.muted\s*=\s*true/);
   assert.match(ui,/AppState.addEventListener/);
   assert.match(ui,/galleryWidth/);
-  assert.doesNotMatch(ui,/width:328|NeonCard|setInterval/);
+  assert.doesNotMatch(ui,/width:328|NeonCard/);
+  assert.match(ui,/setInterval\([\s\S]{0,90}60000/);
+  assert.match(ui,/clearInterval\(timer\)/);
+  assert.match(ui,/AppState.currentState === "background"/);
   assert.ok(app.indexOf('if (tab === "marketplace") return')<app.indexOf('<MotionScrollView'));
 });

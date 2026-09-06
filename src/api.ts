@@ -41,6 +41,7 @@ export type MarketplaceProduct = {
   id:string;title:string;description:string;category:string;condition:'used_like_new'|'used_good'|'used_fair';priceCents:number;
   city:string;state:string;status:'active'|'paused'|'reserved'|'sold'|'closed';createdAt:string;updatedAt:string;
   seller:{id:string;name:string};isMine:boolean;media:MarketplaceMedia[];
+  version?:number;moderationStatus?:'visible'|'hidden';moderationReason?:string;
 };
 export type MarketplaceOrder = {
   id:string;productId:string;productTitle:string;amountCents:number;status:'requested'|'accepted'|'rejected'|'cancelled'|'completed';
@@ -355,33 +356,65 @@ function marketplaceProduct(value:any):MarketplaceProduct{
   return {...value,priceCents:Number(value.priceCents),media:value.media.map((item:any)=>({...item,id:Number(item.id),position:Number(item.position),width:item.width===null?null:Number(item.width),height:item.height===null?null:Number(item.height),durationMs:item.durationMs===null?null:Number(item.durationMs)}))} as MarketplaceProduct;
 }
 
+async function marketplaceJson(url:string,init?:RequestInit){
+  const controller=new AbortController();
+  const abort=()=>controller.abort();
+  if(init?.signal?.aborted)controller.abort();
+  else init?.signal?.addEventListener('abort',abort,{once:true});
+  const timer=setTimeout(abort,25000);
+  try{return await jsonFetch(url,{...init,signal:controller.signal});}
+  catch(error){if(controller.signal.aborted)throw new Error('A consulta demorou demais. Confira sua conexão e atualize a tela.');throw error;}
+  finally{clearTimeout(timer);init?.signal?.removeEventListener('abort',abort);}
+}
+
+export function marketplaceRequestKey(){return createInstallationId();}
+export type MarketplaceNotice={id:number;title:string;message:string;orderCode:string|null;readAt:string|null;createdAt:string};
+export async function loadMarketplaceNotices():Promise<MarketplaceNotice[]>{
+  const r=await marketplaceJson(`${CORE_API}/marketplace/me/notices`,{headers:await marketplaceHeaders()});
+  if(r?.ok!==true||!Array.isArray(r.data))throw new Error('Não foi possível carregar os avisos.');return r.data;
+}
+export async function readMarketplaceNotices(through:number){
+  await marketplaceJson(`${CORE_API}/marketplace/me/notices/read`,{method:'POST',headers:await marketplaceHeaders(),body:JSON.stringify({through})});
+}
+export async function loadMarketplaceBlocks():Promise<{id:string;name:string}[]>{
+  const r=await marketplaceJson(`${CORE_API}/marketplace/me/blocks`,{headers:await marketplaceHeaders()});
+  if(r?.ok!==true||!Array.isArray(r.data))throw new Error('Não foi possível carregar os bloqueios.');return r.data;
+}
+export async function blockMarketplaceUser(id:string,blocked=true){
+  await marketplaceJson(`${CORE_API}/marketplace/blocks/${encodeURIComponent(id)}`,{method:blocked?'POST':'DELETE',headers:await marketplaceHeaders(),body:'{}'});
+}
+export async function editMarketplaceProduct(product:MarketplaceProduct,coverId:number){
+  return marketplaceJson(`${CORE_API}/marketplace/products/${encodeURIComponent(product.id)}`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({...product,coverId})});
+}
+
 export async function loadMarketplace(filters?:{query?:string;category?:string;condition?:string;cursor?:string|null;signal?:AbortSignal}):Promise<{products:MarketplaceProduct[];nextCursor:string|null}>{
   const params=new URLSearchParams();
   if(filters?.query?.trim())params.set('q',filters.query.trim());
   if(filters?.category)params.set('category',filters.category);
   if(filters?.condition)params.set('condition',filters.condition);
   if(filters?.cursor)params.set('cursor',filters.cursor);
-  const response=await jsonFetch(`${CORE_API}/marketplace/products?${params}`,{headers:await marketplaceHeaders(),signal:filters?.signal});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/products?${params}`,{headers:await marketplaceHeaders(),signal:filters?.signal});
   if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar Games Usados.');
   return {products:response.data.map(marketplaceProduct),nextCursor:typeof response.nextCursor==='string'?response.nextCursor:null};
 }
 
 export async function loadMarketplaceProduct(id:string):Promise<MarketplaceProduct>{
-  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}`,{headers:await marketplaceHeaders()});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}`,{headers:await marketplaceHeaders()});
   if(response?.ok!==true)throw new Error('Não foi possível abrir este anúncio.');
   return marketplaceProduct(response.data);
 }
 
 export async function loadMyMarketplaceProducts():Promise<MarketplaceProduct[]>{
-  const response=await jsonFetch(`${CORE_API}/marketplace/me/products`,{headers:await marketplaceHeaders()});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/me/products`,{headers:await marketplaceHeaders()});
   if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar seus anúncios.');
   return response.data.map(marketplaceProduct);
 }
 
-export async function createMarketplaceProduct(input:{title:string;description:string;category:string;condition:string;priceCents:number;city:string;state:string;photos:MarketplaceUploadAsset[];video?:MarketplaceUploadAsset|null}):Promise<MarketplaceProduct>{
+export async function createMarketplaceProduct(input:{title:string;description:string;category:string;condition:string;priceCents:number;city:string;state:string;photos:MarketplaceUploadAsset[];video?:MarketplaceUploadAsset|null;requestKey:string;termsVersion:string}):Promise<MarketplaceProduct>{
   const form=new FormData();
   form.append('title',input.title);form.append('description',input.description);form.append('category',input.category);form.append('condition',input.condition);
   form.append('priceCents',String(input.priceCents));form.append('city',input.city);form.append('state',input.state);
+  form.append('requestKey',input.requestKey);form.append('termsVersion',input.termsVersion);
   input.photos.forEach((asset,index)=>form.append('photos',{uri:asset.uri,name:asset.fileName||`foto-${index+1}.jpg`,type:asset.mimeType||'image/jpeg'} as any));
   if(input.video)form.append('video',{uri:input.video.uri,name:input.video.fileName||'video.mp4',type:input.video.mimeType||'video/mp4'} as any);
   const controller=new AbortController();
@@ -396,30 +429,30 @@ export async function createMarketplaceProduct(input:{title:string;description:s
 }
 
 export async function changeMarketplaceProductStatus(id:string,status:'active'|'paused'|'closed'){
-  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({status})});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({status})});
   if(response?.ok!==true)throw new Error('Não foi possível atualizar o anúncio.');
   return response.data as {id:string;status:string};
 }
 
 export async function requestMarketplacePurchase(id:string):Promise<{publicCode:string;status:string;productTitle:string;amountCents:number;expiresAt:string;seller:{name:string;whatsapp:string}|null}>{
-  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/purchase`,{method:'POST',headers:await marketplaceHeaders(),body:'{}'});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/purchase`,{method:'POST',headers:await marketplaceHeaders(),body:'{}'});
   if(response?.ok!==true)throw new Error('Não foi possível reservar este produto.');
   return response.data;
 }
 
 export async function loadMarketplaceOrders():Promise<MarketplaceOrder[]>{
-  const response=await jsonFetch(`${CORE_API}/marketplace/me/orders`,{headers:await marketplaceHeaders()});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/me/orders`,{headers:await marketplaceHeaders()});
   if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar suas negociações.');
   return response.data.map((item:any)=>({...item,amountCents:Number(item.amountCents)})) as MarketplaceOrder[];
 }
 
 export async function changeMarketplaceOrder(id:string,action:'accept'|'reject'|'cancel'|'complete'){
-  const response=await jsonFetch(`${CORE_API}/marketplace/orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({action})});
+  const response=await marketplaceJson(`${CORE_API}/marketplace/orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({action})});
   if(response?.ok!==true)throw new Error('Não foi possível atualizar a negociação.');
   return response.data as {id:string;status:string};
 }
 
-export async function reportMarketplaceProduct(id:string,reason='informacao_incorreta'){
-  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/report`,{method:'POST',headers:await marketplaceHeaders(),body:JSON.stringify({reason})});
+export async function reportMarketplaceProduct(id:string,reason='informacao_incorreta',details=''){
+  const response=await marketplaceJson(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/report`,{method:'POST',headers:await marketplaceHeaders(),body:JSON.stringify({reason,details})});
   if(response?.ok!==true)throw new Error('Não foi possível registrar a denúncia.');
 }
