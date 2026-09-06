@@ -1,5 +1,7 @@
 # Tutorial completo de compilação Android — LZ-GAMES
 
+**Nova entrega:** [APK 27 — Games Usados](BUILD-27.md), na branch `feature/appgamesusados-marketplace`. Não troque para `main` para compilar essa funcionalidade; o projeto anterior permanece separado. Consulte o registro do 27 e o EAS para seu estado atual.
+
 **Último APK concluído: [26 / VFX-15](BUILD-26.md), baixado, validado e publicado.** Não enviar novamente o 26 para consultar o andamento nem esperar os detalhes novos da Agenda ao reinstalar um APK anterior.
 
 **Fonte do APK 26:** detalhes completos dos agendamentos, confirmação pelo modelo existente de WhatsApp, Lotties maiores, foguete +30% e convite novo por compartilhamento. As [guardas de indicação e a correção da Agenda por CPF](SEGURANCA-INDICACOES-AGENDA-CPF.md) já estão no servidor. Este build foi concluído em 06/09/2026; os passos de outro envio só devem ser executados quando solicitado.
