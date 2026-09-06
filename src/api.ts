@@ -36,6 +36,17 @@ export type AppReferralCredit = {bonusCents:number;creditCents:number;rewardCoun
 export type ReferralSummary = {total:number;pending:number;completed:number;cancelled:number;valid:number;approvedCents:number;tiers:ReferralTier[];currentTier:ReferralTier;appCredit?:AppReferralCredit};
 export type ReferralItem = {id:string;name:string;status:string;cashbackCents:number;createdAt:string;updatedAt:string};
 export type ReferralRewardsData = {summary:ReferralSummary;items:ReferralItem[]};
+export type MarketplaceMedia = {id:number;kind:'image'|'video';position:number;url:string;posterUrl:string|null;width:number|null;height:number|null;durationMs:number|null};
+export type MarketplaceProduct = {
+  id:string;title:string;description:string;category:string;condition:'used_like_new'|'used_good'|'used_fair';priceCents:number;
+  city:string;state:string;status:'active'|'paused'|'reserved'|'sold'|'closed';createdAt:string;updatedAt:string;
+  seller:{id:string;name:string};isMine:boolean;media:MarketplaceMedia[];
+};
+export type MarketplaceOrder = {
+  id:string;productId:string;productTitle:string;amountCents:number;status:'requested'|'accepted'|'rejected'|'cancelled'|'completed';
+  productStatus:string;role:'buyer'|'seller';other:{name:string;whatsapp:string}|null;expiresAt:string;createdAt:string;updatedAt:string;
+};
+export type MarketplaceUploadAsset = {uri:string;mimeType?:string|null;fileName?:string|null};
 export type HomeData = {
   user: User;
   connections: { assistance: boolean; scheduling: boolean; turborama: boolean };
@@ -331,4 +342,84 @@ export async function acceptReferralInvite(input:string):Promise<{alreadyRegiste
   const response=await jsonFetch(`${CORE_API}/referrals/accept`,{method:'POST',headers,body:JSON.stringify({codigo_ref:code})});
   if(response?.ok!==true||typeof response?.data?.status!=='string')throw new Error('Não foi possível confirmar o registro da indicação. Atualize antes de tentar novamente.');
   return {alreadyRegistered:response.already_registered===true,status:response.data.status};
+}
+
+async function marketplaceHeaders(){
+  const [boxToken,coreToken]=await Promise.all([SecureStore.getItemAsync(BOX_TOKEN),SecureStore.getItemAsync(CORE_TOKEN)]);
+  if(sessionClosing||(!boxToken&&!coreToken))throw new Error('Sua sessão terminou. Entre novamente para acessar Games Usados.');
+  return {Authorization:`Bearer ${boxToken||coreToken}`,'X-LZ-Identity-Provider':boxToken?'box':'core'};
+}
+
+function marketplaceProduct(value:any):MarketplaceProduct{
+  if(!value||typeof value.id!=='string'||typeof value.title!=='string'||!Array.isArray(value.media)||!Number.isSafeInteger(Number(value.priceCents)))throw new Error('A loja retornou um anúncio inválido. Atualize a tela.');
+  return {...value,priceCents:Number(value.priceCents),media:value.media.map((item:any)=>({...item,id:Number(item.id),position:Number(item.position),width:item.width===null?null:Number(item.width),height:item.height===null?null:Number(item.height),durationMs:item.durationMs===null?null:Number(item.durationMs)}))} as MarketplaceProduct;
+}
+
+export async function loadMarketplace(filters?:{query?:string;category?:string;condition?:string;cursor?:string|null}):Promise<{products:MarketplaceProduct[];nextCursor:string|null}>{
+  const params=new URLSearchParams();
+  if(filters?.query?.trim())params.set('q',filters.query.trim());
+  if(filters?.category)params.set('category',filters.category);
+  if(filters?.condition)params.set('condition',filters.condition);
+  if(filters?.cursor)params.set('cursor',filters.cursor);
+  const response=await jsonFetch(`${CORE_API}/marketplace/products?${params}`,{headers:await marketplaceHeaders()});
+  if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar Games Usados.');
+  return {products:response.data.map(marketplaceProduct),nextCursor:typeof response.nextCursor==='string'?response.nextCursor:null};
+}
+
+export async function loadMarketplaceProduct(id:string):Promise<MarketplaceProduct>{
+  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}`,{headers:await marketplaceHeaders()});
+  if(response?.ok!==true)throw new Error('Não foi possível abrir este anúncio.');
+  return marketplaceProduct(response.data);
+}
+
+export async function loadMyMarketplaceProducts():Promise<MarketplaceProduct[]>{
+  const response=await jsonFetch(`${CORE_API}/marketplace/me/products`,{headers:await marketplaceHeaders()});
+  if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar seus anúncios.');
+  return response.data.map(marketplaceProduct);
+}
+
+export async function createMarketplaceProduct(input:{title:string;description:string;category:string;condition:string;priceCents:number;city:string;state:string;photos:MarketplaceUploadAsset[];video?:MarketplaceUploadAsset|null}):Promise<MarketplaceProduct>{
+  const form=new FormData();
+  form.append('title',input.title);form.append('description',input.description);form.append('category',input.category);form.append('condition',input.condition);
+  form.append('priceCents',String(input.priceCents));form.append('city',input.city);form.append('state',input.state);
+  input.photos.forEach((asset,index)=>form.append('photos',{uri:asset.uri,name:asset.fileName||`foto-${index+1}.jpg`,type:asset.mimeType||'image/jpeg'} as any));
+  if(input.video)form.append('video',{uri:input.video.uri,name:input.video.fileName||'video.mp4',type:input.video.mimeType||'video/mp4'} as any);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),240000);
+  try{
+    const response=await fetch(`${CORE_API}/marketplace/products`,{method:'POST',headers:{Accept:'application/json',...await marketplaceHeaders()},body:form,signal:controller.signal});
+    let payload:any;try{payload=await response.json();}catch{throw new Error('O servidor não confirmou o envio do anúncio.');}
+    if(!response.ok||payload?.ok!==true)throw new Error(payload?.error??'Não foi possível publicar o anúncio.');
+    return marketplaceProduct(payload.data);
+  }catch(error){if(error instanceof Error&&error.name==='AbortError')throw new Error('O envio demorou demais. Verifique sua internet e tente novamente.');throw error;}
+  finally{clearTimeout(timer);}
+}
+
+export async function changeMarketplaceProductStatus(id:string,status:'active'|'paused'|'closed'){
+  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({status})});
+  if(response?.ok!==true)throw new Error('Não foi possível atualizar o anúncio.');
+  return response.data as {id:string;status:string};
+}
+
+export async function requestMarketplacePurchase(id:string):Promise<{publicCode:string;status:string;productTitle:string;amountCents:number;expiresAt:string;seller:{name:string;whatsapp:string}|null}>{
+  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/purchase`,{method:'POST',headers:await marketplaceHeaders(),body:'{}'});
+  if(response?.ok!==true)throw new Error('Não foi possível reservar este produto.');
+  return response.data;
+}
+
+export async function loadMarketplaceOrders():Promise<MarketplaceOrder[]>{
+  const response=await jsonFetch(`${CORE_API}/marketplace/me/orders`,{headers:await marketplaceHeaders()});
+  if(response?.ok!==true||!Array.isArray(response.data))throw new Error('Não foi possível carregar suas negociações.');
+  return response.data.map((item:any)=>({...item,amountCents:Number(item.amountCents)})) as MarketplaceOrder[];
+}
+
+export async function changeMarketplaceOrder(id:string,action:'accept'|'reject'|'cancel'|'complete'){
+  const response=await jsonFetch(`${CORE_API}/marketplace/orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:await marketplaceHeaders(),body:JSON.stringify({action})});
+  if(response?.ok!==true)throw new Error('Não foi possível atualizar a negociação.');
+  return response.data as {id:string;status:string};
+}
+
+export async function reportMarketplaceProduct(id:string,reason='informacao_incorreta'){
+  const response=await jsonFetch(`${CORE_API}/marketplace/products/${encodeURIComponent(id)}/report`,{method:'POST',headers:await marketplaceHeaders(),body:JSON.stringify({reason})});
+  if(response?.ok!==true)throw new Error('Não foi possível registrar a denúncia.');
 }

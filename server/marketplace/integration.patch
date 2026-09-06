@@ -1,0 +1,18 @@
+--- a/db.js
++++ b/db.js
+@@
+-  ) || (n === '1' ? pick('DB_NAME', 'MYSQL_DATABASE', 'DATABASE', 'DB1_NAME') : '');
++  ) || (n === '1' ? pick('DB_NAME', 'MYSQL_DATABASE', 'DATABASE', 'DB1_NAME')
++    : n === '5' ? 'u214656250_appgamesusados' : '');
+@@
++const db5Cfg = buildDbConfig(5, 'App Games Usados / Marketplace');
++
++const dbMarketplace = db5Cfg ? createPool(db5Cfg) : null;
+@@
++  dbMarketplace,
+--- a/app.js
++++ b/app.js
+@@
++const marketplaceRoutes = require("./routes/marketplace");
+@@
++app.use("/api/marketplace", marketplaceRoutes);

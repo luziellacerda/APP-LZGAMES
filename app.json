@@ -3,7 +3,7 @@
     "name": "LZ-GAMES",
     "slug": "lz-games",
     "version": "1.0.1",
-    "description": "Aplicativo oficial da LZ Games para clientes acompanharem ordens de serviço, agendamentos e serviços TurboRama.",
+    "description": "Aplicativo oficial da LZ Games para ordens de serviço, agenda, TurboRama, sorteios, benefícios e Games Usados.",
     "icon": "./assets/icon.png",
     "scheme": "lzgames",
     "orientation": "portrait",
@@ -24,6 +24,8 @@
     },
     "plugins": [
       "expo-secure-store",
+      "expo-video",
+      ["expo-image-picker", {"photosPermission":"Permita que a LZ-GAMES acesse suas fotos e vídeos para publicar produtos em Games Usados.","cameraPermission":false,"microphonePermission":false}],
       ["expo-notifications", {"color":"#FFD66B","defaultChannel":"sorteios"}],
       [
         "expo-splash-screen",

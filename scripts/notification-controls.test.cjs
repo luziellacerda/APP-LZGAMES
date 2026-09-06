@@ -170,7 +170,7 @@ function fixture(options = {}) {
     },
   };
   for (const [path, name] of [
-    ['AgendaBooking', 'AgendaBooking'], ['AppointmentCard', 'AppointmentCard'], ['ReferralRewards', 'ReferralRewards'], ['HyperspaceBackground', 'HyperspaceBackground'],
+    ['AgendaBooking', 'AgendaBooking'], ['AppointmentCard', 'AppointmentCard'], ['ReferralRewards', 'ReferralRewards'], ['Marketplace', 'Marketplace'], ['HyperspaceBackground', 'HyperspaceBackground'],
     ['MatrixRain', 'MatrixBackground'], ['RaffleDetails', 'RaffleDetails'],
     ['ServiceOrderCard', 'ServiceOrderCard'], ['TurboRamaDetails', 'TurboRamaDetails'],
     ['effects/Spaceflight', 'SpaceflightBackground'], ['effects/CoinRainBackground', 'CoinRainBackground'],

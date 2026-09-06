@@ -35,6 +35,7 @@ import { completeReferralEntry } from "./src/referralEntry";
 import { AgendaBooking } from "./src/AgendaBooking";
 import { AppointmentCard } from "./src/AppointmentCard";
 import { ReferralRewards } from "./src/ReferralRewards";
+import { Marketplace } from "./src/Marketplace";
 import { HyperspaceBackground } from "./src/HyperspaceBackground";
 import { MatrixBackground } from "./src/MatrixRain";
 import { RaffleDetails } from "./src/RaffleDetails";
@@ -51,7 +52,7 @@ import { ElectricMenuEffects, type MenuBounds } from "./src/effects/ElectricMenu
 import { PreviewRevision } from "./src/effects/PreviewRevision";
 import { dismissRaffleNotifications, preparePushRegistration, supportsRemotePush, useRafflePush } from "./src/push";
 
-type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta" | "cashback";
+type Tab = "inicio" | "os" | "agenda" | "turborama" | "sorteios" | "conta" | "cashback" | "marketplace";
 function announcementDestination(type:RaffleAnnouncement['event_type']):{screen:Tab;tag:string;action:string}|null{
   switch(type){
     case 'service_order':return {screen:'os',tag:'◉ AVISO DE OS',action:'VER ORDEM DE SERVIÇO →'};
@@ -466,7 +467,7 @@ function AppContent() {
     );
 
   const firstName = data?.user.name.split(" ")[0] ?? "Cliente";
-  const menuTab = tab === "cashback" ? "conta" : tab;
+  const menuTab = tab === "cashback" ? "conta" : tab === "marketplace" ? "inicio" : tab;
   const cashbackEntry=(location:string)=>(
     <NeonCard testID={`referral-entry-${location}`} color="#ffd66b" radius={16} style={s.referralEntry}
       accessibilityRole="button" accessibilityLabel="Indique e ganhe cashback. Ver indicações e compartilhar convite."
@@ -560,6 +561,14 @@ function AppContent() {
               </NeonCard>;
             })}
             {cashbackEntry("home")}
+            <NeonCard color="#70d8ff" style={[s.hero, s.marketplace]} onPress={() => setTab("marketplace")}
+              accessibilityRole="button" accessibilityLabel="Games Usados. Comprar e vender produtos entre clientes cadastrados.">
+              <View style={s.cardEmoji}><Text style={s.marketplaceEmoji}>🎮</Text></View>
+              <Text style={s.cardTag}>COMPRA E VENDA ENTRE CLIENTES</Text>
+              <Text style={s.cardTitle}>Games Usados</Text>
+              <Text style={s.cardText}>Publique, encontre e reserve produtos.</Text>
+              <Text style={s.arrow}>ABRIR LOJA →</Text>
+            </NeonCard>
             <NeonCard style={[s.hero, s.green]} onPress={() => setTab("os")}>
               <View style={s.cardEmoji}><AnimatedIcon name="tools" size={54} /></View>
               <Text style={s.cardTag}>ASSISTÊNCIA TÉCNICA</Text>
@@ -682,6 +691,14 @@ function AppContent() {
               <Text style={s.referralBackText}>← VOLTAR PARA O INÍCIO</Text>
             </Pressable>
             <ReferralRewards refreshKey={data} />
+          </>
+        )}
+        {tab === "marketplace" && (
+          <>
+            <Pressable accessibilityRole="button" accessibilityLabel="Voltar para o início" onPress={()=>setTab("inicio")} style={s.referralBack}>
+              <Text style={s.marketplaceBackText}>← VOLTAR PARA O INÍCIO</Text>
+            </Pressable>
+            <Marketplace />
           </>
         )}
         {tab === "conta" && (
@@ -979,6 +996,9 @@ const s = StyleSheet.create({
   green: { backgroundColor: "#123c2d" },
   blue: { backgroundColor: "#123044" },
   purple: { backgroundColor: "#281e46" },
+  marketplace: { backgroundColor: "#0b3040" },
+  marketplaceEmoji: { fontSize: 47 },
+  marketplaceBackText: { color: "#70d8ff", fontSize: 11, fontWeight: "800" },
   raffle: { backgroundColor: "#432052", paddingRight: 110 },
   raffleTrophy: { position: "absolute", right: 14, top: 0 },
   noticeCard: { padding: 15, borderRadius: 17, overflow: "hidden" },
